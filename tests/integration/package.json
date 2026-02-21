@@ -7,7 +7,8 @@
   "scripts": {
     "test": "tsx src/gateway.test.ts",
     "test:gateway": "tsx src/gateway.test.ts",
-    "test:grpc-live2d": "tsx src/grpc-live2d.ts"
+    "test:grpc-live2d": "tsx src/grpc-live2d.ts",
+    "test:tts": "tsx src/tts.test.ts"
   },
   "dependencies": {
     "@clawbody/core": "workspace:*",
