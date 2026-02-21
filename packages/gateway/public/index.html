@@ -56,16 +56,37 @@
       console.log('[status]', msg);
     }
 
-    // Create PIXI app
+    // Create PIXI app with lower frame rate
     const app = new PIXI.Application({
       width: WIDTH,
       height: HEIGHT,
       backgroundAlpha: 0,
       antialias: true,
-      resolution: window.devicePixelRatio || 1,
+      resolution: Math.min(window.devicePixelRatio || 1, 2),  // Cap at 2x
       autoDensity: true,
     });
     document.body.appendChild(app.view);
+
+    // Limit frame rate to save CPU
+    const TARGET_FPS = 30;
+    let lastTime = 0;
+    app.ticker.maxFPS = TARGET_FPS;
+
+    // Idle mode: reduce to 10fps when no animation
+    let idleTimeout = null;
+    let isIdle = false;
+
+    function setActive() {
+      if (isIdle) {
+        isIdle = false;
+        app.ticker.maxFPS = TARGET_FPS;
+      }
+      clearTimeout(idleTimeout);
+      idleTimeout = setTimeout(() => {
+        isIdle = true;
+        app.ticker.maxFPS = 10;  // Low FPS when idle
+      }, 3000);
+    }
 
     // Shizuku model (Cubism 2)
     const MODEL_URL = '/assets/shizuku.model.json';
@@ -91,9 +112,13 @@
 
         // Hit area interactions
         model.on('hit', (hitAreas) => {
+          setActive();
           if (hitAreas.includes('body')) model.motion('tap_body');
           else if (hitAreas.includes('head')) model.motion('flick_head');
         });
+
+        // Start idle timer
+        setActive();
 
         // Collect available expressions and motions
         const expressions = [];
@@ -130,14 +155,14 @@
       const es = new EventSource('/api/events');
       es.addEventListener('expression', (e) => {
         const { name } = JSON.parse(e.data);
-        if (model) { model.expression(name); setStatus('expr: ' + name); }
+        if (model) { setActive(); model.expression(name); setStatus('expr: ' + name); }
       });
       es.addEventListener('motion', (e) => {
         const { group, index } = JSON.parse(e.data);
-        if (model) { model.motion(group, index); setStatus('motion: ' + group + '[' + index + ']'); }
+        if (model) { setActive(); model.motion(group, index); setStatus('motion: ' + group + '[' + index + ']'); }
       });
       es.addEventListener('speak', () => {
-        if (model) model.motion('tap_body', 0);
+        if (model) { setActive(); model.motion('tap_body', 0); }
       });
       es.onerror = () => {
         setTimeout(connectSSE, 3000);
