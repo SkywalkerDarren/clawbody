@@ -94,9 +94,11 @@ function createTray(): void {
 }
 
 // Linux transparency fix
+// Note: disableHardwareAcceleration() causes WebGL to use CPU rendering (very slow)
+// Keep GPU acceleration enabled, transparency works on most modern compositors
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-transparent-visuals');
-  app.disableHardwareAcceleration();
+  // Don't disable hardware acceleration - it kills WebGL performance
 }
 
 app.whenReady().then(() => {
