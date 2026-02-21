@@ -8,7 +8,10 @@
     "test": "tsx src/gateway.test.ts",
     "test:gateway": "tsx src/gateway.test.ts",
     "test:grpc-live2d": "tsx src/grpc-live2d.ts",
-    "test:tts": "tsx src/tts.test.ts"
+    "test:tts": "tsx src/tts.test.ts",
+    "brain": "tsx src/brain-client.ts",
+    "brain:demo": "tsx src/brain-client.ts --demo",
+    "brain:interactive": "tsx src/brain-client.ts --interactive"
   },
   "dependencies": {
     "@clawbody/core": "workspace:*",
