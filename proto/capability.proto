@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package clawbody.capability;
+
+import "google/protobuf/timestamp.proto";
+import "types.proto";
+
+// 能力元数据
+message CapabilityMeta {
+  string id = 1;
+  string name = 2;
+  string version = 3;
+  clawbody.types.CapabilityType type = 4;
+  string description = 5;
+  repeated string dependencies = 6;
+}
+
+// 能力健康信息
+message CapabilityHealth {
+  clawbody.types.CapabilityStatus status = 1;
+  string message = 2;
+  google.protobuf.Timestamp last_check = 3;
+  map<string, string> details = 4;
+}
+
+// 操作描述符
+message OperationDescriptor {
+  string name = 1;
+  string description = 2;
+  string input_schema = 3;   // JSON Schema as string
+  string output_schema = 4;  // JSON Schema as string
+  bool streaming = 5;
+}
+
+// 能力信息
+message CapabilityInfo {
+  CapabilityMeta meta = 1;
+  clawbody.types.CapabilityStatus status = 2;
+  repeated OperationDescriptor operations = 3;
+}

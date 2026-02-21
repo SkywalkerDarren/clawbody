@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Live2D Widget</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+    }
+    #drag-handle {
+      -webkit-app-region: drag;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 30px;
+      z-index: 200;
+      cursor: grab;
+    }
+    #status {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      color: rgba(255,255,255,0.8);
+      font-size: 11px;
+      font-family: monospace;
+      pointer-events: none;
+      z-index: 100;
+      text-shadow: 1px 1px 2px black;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <div id="drag-handle"></div>
+  <div id="status">Loading...</div>
+
+  <!-- PIXI.js v6 -->
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+  <!-- pixi-live2d-display v0.4.0 with Cubism 2 support -->
+  <script src="/assets/pixi.min.js"></script>
+  <script src="/assets/live2d.min.js"></script>
+  <script src="/assets/cubism2.min.js"></script>
+
+  <script>
+    const WIDTH = window.innerWidth;
+    const HEIGHT = window.innerHeight;
+    const statusEl = document.getElementById('status');
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+      console.log('[status]', msg);
+    }
+
+    // Create PIXI app
+    const app = new PIXI.Application({
+      width: WIDTH,
+      height: HEIGHT,
+      backgroundAlpha: 0,
+      antialias: true,
+      resolution: window.devicePixelRatio || 1,
+      autoDensity: true,
+    });
+    document.body.appendChild(app.view);
+
+    // Shizuku model (Cubism 2)
+    const MODEL_URL = '/assets/shizuku.model.json';
+
+    let model = null;
+
+    async function loadModel() {
+      setStatus('Loading model...');
+      try {
+        model = await PIXI.live2d.Live2DModel.from(MODEL_URL, {
+          autoInteract: true,
+        });
+
+        app.stage.addChild(model);
+
+        // Scale to fit
+        const scale = Math.min(WIDTH / model.internalModel.originalWidth, HEIGHT / model.internalModel.originalHeight) * 0.95;
+        model.scale.set(scale);
+
+        // Center horizontally, align to bottom
+        model.x = (WIDTH - model.width) / 2;
+        model.y = HEIGHT - model.height - 10;
+
+        // Hit area interactions
+        model.on('hit', (hitAreas) => {
+          if (hitAreas.includes('body')) model.motion('tap_body');
+          else if (hitAreas.includes('head')) model.motion('flick_head');
+        });
+
+        // Collect available expressions and motions
+        const expressions = [];
+        const motions = {};
+        try {
+          const exprMgr = model.internalModel.motionManager.expressionManager;
+          if (exprMgr && exprMgr.definitions) {
+            exprMgr.definitions.forEach((def, i) => expressions.push(def.name || `expr_${i}`));
+          }
+        } catch(e) { console.warn('expr:', e); }
+        try {
+          const defs = model.internalModel.motionManager.definitions;
+          if (defs) Object.keys(defs).forEach(g => { motions[g] = defs[g].length; });
+        } catch(e) { console.warn('motion:', e); }
+
+        fetch('/api/model-ready', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ expressions, motions }),
+        }).catch(() => {});
+
+        setStatus(`✓ Ready | expr:${expressions.length} motions:${Object.keys(motions).join(',')}`);
+        console.log('Expressions:', expressions);
+        console.log('Motions:', motions);
+
+      } catch (err) {
+        setStatus('✗ Error: ' + err.message);
+        console.error('Failed to load model:', err);
+      }
+    }
+
+    // SSE for real-time commands
+    function connectSSE() {
+      const es = new EventSource('/api/events');
+      es.addEventListener('expression', (e) => {
+        const { name } = JSON.parse(e.data);
+        if (model) { model.expression(name); setStatus('expr: ' + name); }
+      });
+      es.addEventListener('motion', (e) => {
+        const { group, index } = JSON.parse(e.data);
+        if (model) { model.motion(group, index); setStatus('motion: ' + group + '[' + index + ']'); }
+      });
+      es.addEventListener('speak', () => {
+        if (model) model.motion('tap_body', 0);
+      });
+      es.onerror = () => {
+        setTimeout(connectSSE, 3000);
+        es.close();
+      };
+    }
+
+    loadModel();
+    connectSSE();
+  </script>
+</body>
+</html>

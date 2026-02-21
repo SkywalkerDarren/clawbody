@@ -1,0 +1,7 @@
+node_modules
+dist
+coverage
+.turbo
+*.lock
+pnpm-lock.yaml
+packages/proto-gen/src/generated

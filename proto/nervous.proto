@@ -1,0 +1,150 @@
+syntax = "proto3";
+
+package clawbody.nervous;
+
+import "google/protobuf/timestamp.proto";
+import "types.proto";
+import "capability.proto";
+
+// ============ 服务定义 ============
+
+service NervousSystem {
+  // 双向流：Brain <-> Body 实时通信
+  rpc Connect(stream BrainMessage) returns (stream BodyMessage);
+
+  // 单次调用：执行能力操作
+  rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+
+  // 流式调用：执行流式操作 (如 TTS 流式播放)
+  rpc ExecuteStream(ExecuteRequest) returns (stream ExecuteChunk);
+
+  // 查询能力
+  rpc GetCapabilities(GetCapabilitiesRequest) returns (GetCapabilitiesResponse);
+
+  // 健康检查
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// ============ Brain -> Body 消息 ============
+
+message BrainMessage {
+  string request_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+
+  oneof payload {
+    CommandMessage command = 10;
+    QueryMessage query = 11;
+    SubscribeMessage subscribe = 12;
+    HeartbeatMessage heartbeat = 13;
+  }
+}
+
+// 命令消息
+message CommandMessage {
+  string capability_id = 1;
+  string operation = 2;
+  bytes input = 3;  // JSON 编码的输入
+  clawbody.types.ExecutionOptions options = 4;
+}
+
+// 查询消息
+message QueryMessage {
+  string capability_id = 1;
+  string query_type = 2;  // "status", "operations", "health"
+}
+
+// 订阅消息
+message SubscribeMessage {
+  string capability_id = 1;
+  repeated string event_types = 2;
+}
+
+// 心跳消息
+message HeartbeatMessage {
+  int64 sequence = 1;
+}
+
+// ============ Body -> Brain 消息 ============
+
+message BodyMessage {
+  string request_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+
+  oneof payload {
+    ResponseMessage response = 10;
+    EventMessage event = 11;
+    clawbody.types.ErrorMessage error = 12;
+    HeartbeatAck heartbeat_ack = 13;
+  }
+}
+
+// 响应消息
+message ResponseMessage {
+  bool success = 1;
+  bytes output = 2;  // JSON 编码的输出
+  int64 duration_ms = 3;
+}
+
+// 事件消息 (Body 主动推送)
+message EventMessage {
+  string capability_id = 1;
+  string event_type = 2;
+  bytes data = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+// 心跳确认
+message HeartbeatAck {
+  int64 sequence = 1;
+}
+
+// ============ 单次调用消息 ============
+
+message ExecuteRequest {
+  string request_id = 1;
+  string capability_id = 2;
+  string operation = 3;
+  bytes input = 4;
+  clawbody.types.ExecutionOptions options = 5;
+}
+
+message ExecuteResponse {
+  string request_id = 1;
+  bool success = 2;
+  bytes output = 3;
+  clawbody.types.ErrorMessage error = 4;
+  int64 duration_ms = 5;
+}
+
+// 流式执行块
+message ExecuteChunk {
+  string request_id = 1;
+  int32 sequence = 2;
+  bytes data = 3;
+  bool is_final = 4;
+  clawbody.types.ErrorMessage error = 5;
+}
+
+// ============ 能力查询 ============
+
+message GetCapabilitiesRequest {
+  // 空表示获取所有能力
+  repeated string capability_ids = 1;
+}
+
+message GetCapabilitiesResponse {
+  repeated clawbody.capability.CapabilityInfo capabilities = 1;
+}
+
+// ============ 健康检查 ============
+
+message HealthCheckRequest {
+  // 空表示检查所有能力
+  repeated string capability_ids = 1;
+}
+
+message HealthCheckResponse {
+  string overall_status = 1;
+  int64 uptime_seconds = 2;
+  repeated clawbody.capability.CapabilityHealth capabilities = 3;
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@clawbody/desktop",
+  "version": "1.0.0",
+  "description": "ClawBody 桌面小部件 - Electron 启动器",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "electron .",
+    "dev": "tsc && electron .",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "electron": "^33.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "files": ["dist"]
+}

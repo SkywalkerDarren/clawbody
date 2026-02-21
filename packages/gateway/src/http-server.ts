@@ -1,0 +1,302 @@
+import express, { Request, Response, NextFunction } from 'express';
+import { createServer } from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
+import path from 'path';
+import type { CapabilityRegistry, CapabilityEvent } from '@clawbody/core';
+import { logger } from '@clawbody/core';
+
+const MOD = 'http-server';
+
+export interface HttpServerConfig {
+  port: number;
+  host?: string;
+  apiKey?: string;
+  staticDir?: string;
+}
+
+/**
+ * HTTP/WebSocket/SSE 服务器 - 为前端提供通信接口
+ */
+export class HttpServer {
+  private app: express.Application;
+  private httpServer: ReturnType<typeof createServer>;
+  private wss: WebSocketServer;
+  private wsClients = new Set<WebSocket>();
+  private sseClients = new Set<Response>();
+  private registry: CapabilityRegistry;
+  private config: HttpServerConfig;
+  private startTime = Date.now();
+  private unsubscribes: Array<() => void> = [];
+
+  constructor(registry: CapabilityRegistry, config: HttpServerConfig) {
+    this.registry = registry;
+    this.config = config;
+
+    this.app = express();
+    this.httpServer = createServer(this.app);
+    this.wss = new WebSocketServer({ server: this.httpServer });
+
+    this.setupMiddleware();
+    this.setupWebSocket();
+    this.setupRoutes();
+    this.subscribeToCapabilities();
+  }
+
+  private setupMiddleware(): void {
+    this.app.use(express.json());
+
+    // 静态文件服务
+    const staticDir = this.config.staticDir ?? path.join(__dirname, '..', 'public');
+    this.app.use(express.static(staticDir));
+
+    // API key 认证
+    if (this.config.apiKey) {
+      this.app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+        const publicPaths = ['/health', '/events', '/model-ready', '/ack'];
+        if (publicPaths.some((p) => req.path === p || req.path.startsWith(p))) {
+          return next();
+        }
+
+        const key = req.headers['x-api-key'];
+        if (!key || key !== this.config.apiKey) {
+          res.status(401).json({ error: 'Unauthorized' });
+          return;
+        }
+        next();
+      });
+    }
+  }
+
+  private setupWebSocket(): void {
+    this.wss.on('connection', (ws, req) => {
+      this.wsClients.add(ws);
+      logger.info(MOD, `WS client connected (${this.wsClients.size} total)`, {
+        ip: req.socket.remoteAddress,
+      });
+
+      ws.on('message', (raw) => {
+        try {
+          const msg = JSON.parse(raw.toString()) as { type?: string; [k: string]: unknown };
+          logger.debug(MOD, 'WS message received', msg);
+        } catch {
+          logger.warn(MOD, 'WS invalid JSON');
+        }
+      });
+
+      ws.on('close', () => {
+        this.wsClients.delete(ws);
+        logger.info(MOD, `WS client disconnected (${this.wsClients.size} remaining)`);
+      });
+
+      ws.on('error', (err) => logger.error(MOD, 'WS error', err));
+    });
+  }
+
+  private setupRoutes(): void {
+    const send = (res: Response, status: number, body: object): void => {
+      res.status(status).json(body);
+    };
+
+    // GET /api/health
+    this.app.get('/api/health', (_req: Request, res: Response) => {
+      send(res, 200, {
+        ok: true,
+        uptime: Math.floor((Date.now() - this.startTime) / 1000),
+        wsClients: this.wsClients.size,
+        sseClients: this.sseClients.size,
+      });
+    });
+
+    // GET /api/capabilities
+    this.app.get('/api/capabilities', (_req: Request, res: Response) => {
+      const capabilities = this.registry.getAllMeta();
+      send(res, 200, { capabilities });
+    });
+
+    // GET /api/model-info (Live2D 模型信息)
+    this.app.get('/api/model-info', (_req: Request, res: Response) => {
+      const live2d = this.registry.get('live2d');
+      if (live2d && 'isModelLoaded' in live2d && 'getModelInfo' in live2d) {
+        const cap = live2d as { isModelLoaded: () => boolean; getModelInfo: () => { expressions: string[]; motions: Record<string, number> } };
+        const info = cap.getModelInfo();
+        send(res, 200, {
+          loaded: cap.isModelLoaded(),
+          ...info,
+        });
+      } else {
+        send(res, 404, { error: 'Live2D capability not available' });
+      }
+    });
+
+    // POST /api/model-ready (Live2D 前端回调)
+    this.app.post('/api/model-ready', (req: Request, res: Response) => {
+      const { loaded, expressions, motions } = req.body as {
+        loaded?: boolean;
+        expressions?: string[];
+        motions?: Record<string, number>;
+      };
+      logger.info(MOD, 'model-ready', { loaded });
+
+      // 找到 live2d 能力并更新状态
+      const live2d = this.registry.get('live2d');
+      if (live2d && 'setModelLoaded' in live2d) {
+        const cap = live2d as { setModelLoaded: (loaded: boolean, info?: { expressions: string[]; motions: Record<string, number> }) => void };
+        if (expressions && motions) {
+          cap.setModelLoaded(true, { expressions, motions });
+        } else {
+          cap.setModelLoaded(loaded ?? false);
+        }
+      }
+
+      this.broadcastWS({ type: 'model-ready', loaded });
+      send(res, 200, { ok: true });
+    });
+
+    // POST /api/ack
+    this.app.post('/api/ack', (req: Request, res: Response) => {
+      const { type, success, error } = req.body as {
+        type?: string;
+        success?: boolean;
+        error?: string;
+      };
+      logger.debug(MOD, 'ack', { type, success, error });
+      send(res, 200, { ok: true });
+    });
+
+    // GET /api/screen (Vision 截图)
+    this.app.get('/api/screen', async (_req: Request, res: Response) => {
+      const vision = this.registry.get('vision');
+      if (!vision) {
+        send(res, 503, { error: 'Vision capability not available' });
+        return;
+      }
+
+      try {
+        const result = await vision.execute('screenshot', {});
+        send(res, 200, result as object);
+      } catch (err) {
+        logger.error(MOD, 'screenshot failed', err);
+        send(res, 500, { error: 'Screenshot failed' });
+      }
+    });
+
+    // GET /api/events (SSE)
+    this.app.get('/api/events', (req: Request, res: Response) => {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders();
+
+      this.sseClients.add(res);
+      logger.info(MOD, 'SSE client connected', { total: this.sseClients.size });
+      res.write('data: {"type":"hello"}\n\n');
+
+      req.on('close', () => {
+        this.sseClients.delete(res);
+        logger.info(MOD, 'SSE client disconnected', { total: this.sseClients.size });
+      });
+    });
+
+    // 404 fallback
+    this.app.use((_req: Request, res: Response) => {
+      send(res, 404, { error: 'not found' });
+    });
+
+    // Error handler
+    this.app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+      logger.error(MOD, 'unhandled error', err);
+      send(res, 500, { error: 'internal server error' });
+    });
+  }
+
+  private subscribeToCapabilities(): void {
+    // 订阅所有能力的事件
+    for (const capability of this.registry.getAll()) {
+      if (capability.subscribe) {
+        const unsubscribe = capability.subscribe((event: CapabilityEvent) => {
+          this.handleCapabilityEvent(event);
+        });
+        this.unsubscribes.push(unsubscribe);
+      }
+    }
+  }
+
+  private handleCapabilityEvent(event: CapabilityEvent): void {
+    // 将能力事件广播到前端
+    if (event.eventType === 'command') {
+      // Live2D 命令事件
+      const data = event.data as { type: string; data: unknown };
+      this.broadcastWS({ type: data.type, data: data.data });
+      this.broadcastSSE(data.data, data.type);
+    } else {
+      // 其他事件
+      this.broadcastWS({
+        type: 'event',
+        capabilityId: event.capabilityId,
+        eventType: event.eventType,
+        data: event.data,
+      });
+    }
+  }
+
+  private broadcastWS(msg: unknown): void {
+    const data = JSON.stringify(msg);
+    for (const ws of this.wsClients) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(data);
+      }
+    }
+  }
+
+  private broadcastSSE(data: unknown, event?: string): void {
+    const msg = (event ? `event: ${event}\n` : '') + `data: ${JSON.stringify(data)}\n\n`;
+    for (const client of this.sseClients) {
+      client.write(msg);
+    }
+  }
+
+  async start(): Promise<void> {
+    return new Promise((resolve) => {
+      this.httpServer.listen(this.config.port, this.config.host ?? '0.0.0.0', () => {
+        logger.info(MOD, `HTTP server listening on ${this.config.host ?? '0.0.0.0'}:${this.config.port}`);
+        resolve();
+      });
+    });
+  }
+
+  async stop(): Promise<void> {
+    // 取消订阅
+    for (const unsubscribe of this.unsubscribes) {
+      unsubscribe();
+    }
+    this.unsubscribes = [];
+
+    // 关闭 WebSocket 连接
+    for (const ws of this.wsClients) {
+      ws.close();
+    }
+    this.wsClients.clear();
+
+    // 关闭 SSE 连接
+    for (const res of this.sseClients) {
+      res.end();
+    }
+    this.sseClients.clear();
+
+    // 关闭 HTTP 服务器
+    return new Promise((resolve) => {
+      this.httpServer.close(() => {
+        logger.info(MOD, 'HTTP server stopped');
+        resolve();
+      });
+    });
+  }
+
+  get wsClientCount(): number {
+    return this.wsClients.size;
+  }
+
+  get sseClientCount(): number {
+    return this.sseClients.size;
+  }
+}

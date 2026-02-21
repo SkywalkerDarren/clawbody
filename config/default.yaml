@@ -1,0 +1,43 @@
+# ClawBody 配置文件
+
+# gRPC 服务配置
+grpc:
+  port: 50051
+  host: "0.0.0.0"
+
+# HTTP/WebSocket/SSE 服务配置
+http:
+  port: 4000
+  host: "0.0.0.0"
+  # apiKey: "your-secret-key"  # 取消注释启用 API 认证
+
+# mDNS 服务发现
+discovery:
+  enabled: true
+  # serviceName: "clawbody-custom"  # 自定义服务名称
+
+# 能力配置
+capabilities:
+  # Live2D 桌面伴侣
+  live2d:
+    enabled: true
+
+  # TTS 语音合成
+  tts:
+    enabled: true
+    defaultProvider: "edge"
+    providers:
+      edge:
+        type: "edge"
+      qwen:
+        type: "qwen"
+        baseUrl: "http://localhost:8765"
+
+  # Vision 屏幕截图
+  vision:
+    enabled: true
+    preferredTool: "auto"  # auto, scrot, import
+
+# 日志配置
+logging:
+  level: "info"  # debug, info, warn, error

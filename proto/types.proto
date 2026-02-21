@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package clawbody.types;
+
+import "google/protobuf/timestamp.proto";
+
+// 优先级
+enum Priority {
+  PRIORITY_LOW = 0;
+  PRIORITY_NORMAL = 1;
+  PRIORITY_HIGH = 2;
+}
+
+// 错误码
+enum ErrorCode {
+  ERROR_UNKNOWN = 0;
+  ERROR_CAPABILITY_NOT_FOUND = 1;
+  ERROR_OPERATION_NOT_FOUND = 2;
+  ERROR_INVALID_INPUT = 3;
+  ERROR_TIMEOUT = 4;
+  ERROR_CAPABILITY_UNAVAILABLE = 5;
+  ERROR_INTERNAL = 6;
+}
+
+// 能力状态
+enum CapabilityStatus {
+  CAPABILITY_STATUS_UNKNOWN = 0;
+  CAPABILITY_STATUS_INITIALIZING = 1;
+  CAPABILITY_STATUS_READY = 2;
+  CAPABILITY_STATUS_BUSY = 3;
+  CAPABILITY_STATUS_DEGRADED = 4;
+  CAPABILITY_STATUS_UNAVAILABLE = 5;
+  CAPABILITY_STATUS_ERROR = 6;
+}
+
+// 能力类型
+enum CapabilityType {
+  CAPABILITY_TYPE_UNKNOWN = 0;
+  CAPABILITY_TYPE_OUTPUT = 1;
+  CAPABILITY_TYPE_INPUT = 2;
+  CAPABILITY_TYPE_ACTION = 3;
+  CAPABILITY_TYPE_COMPOSITE = 4;
+}
+
+// 错误消息
+message ErrorMessage {
+  ErrorCode code = 1;
+  string message = 2;
+  string details = 3;
+}
+
+// 执行选项
+message ExecutionOptions {
+  int32 timeout_ms = 1;
+  Priority priority = 2;
+  bool async = 3;
+}
