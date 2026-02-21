@@ -1,0 +1,22 @@
+[project]
+name = "qwen3-tts"
+version = "0.1.0"
+description = "Qwen3-TTS 本地语音合成服务"
+readme = "README.md"
+authors = [
+    { name = "SkywalkerDarren", email = "yh322yh@outlook.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.129.2",
+    "qwen-tts>=0.1.1",
+    "soundfile>=0.13.1",
+    "uvicorn>=0.41.0",
+]
+
+[project.scripts]
+qwen3-tts-server = "qwen3_tts.server:main"
+
+[build-system]
+requires = ["uv_build>=0.9.28,<0.10.0"]
+build-backend = "uv_build"

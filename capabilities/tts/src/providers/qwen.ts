@@ -6,12 +6,13 @@ export interface QwenConfig {
 }
 
 const QWEN_VOICES: Voice[] = [
-  { id: 'Vivian', name: 'Vivian', language: 'en', gender: 'female' },
-  { id: 'Ethan', name: 'Ethan', language: 'en', gender: 'male' },
-  { id: 'Chelsie', name: 'Chelsie', language: 'en', gender: 'female' },
-  { id: 'Serena', name: 'Serena', language: 'zh', gender: 'female' },
-  { id: 'Aiden', name: 'Aiden', language: 'zh', gender: 'male' },
-  { id: 'Bella', name: 'Bella', language: 'zh', gender: 'female' },
+  { id: 'Vivian', name: 'Vivian (明亮女声)', language: 'zh', gender: 'female' },
+  { id: 'Serena', name: 'Serena (温柔女声)', language: 'zh', gender: 'female' },
+  { id: 'Uncle_Fu', name: 'Uncle Fu (醇厚男声)', language: 'zh', gender: 'male' },
+  { id: 'Dylan', name: 'Dylan (北京男声)', language: 'zh', gender: 'male' },
+  { id: 'Eric', name: 'Eric (四川男声)', language: 'zh', gender: 'male' },
+  { id: 'Ryan', name: 'Ryan (动感男声)', language: 'en', gender: 'male' },
+  { id: 'Aiden', name: 'Aiden (美式男声)', language: 'en', gender: 'male' },
 ];
 
 /**
@@ -39,13 +40,29 @@ export class QwenTTSProvider implements ITTSProvider {
       });
 
       clearTimeout(timeoutId);
-      return res.ok;
+
+      if (!res.ok) return false;
+
+      const data = (await res.json()) as { status: string };
+      return data.status === 'ready';
     } catch {
       return false;
     }
   }
 
   async listVoices(): Promise<Voice[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/speakers`);
+      if (res.ok) {
+        const data = (await res.json()) as { speakers: string[] };
+        return data.speakers.map((id) => {
+          const voice = QWEN_VOICES.find((v) => v.id === id);
+          return voice ?? { id, name: id, language: 'zh', gender: undefined };
+        });
+      }
+    } catch {
+      // fallback
+    }
     return QWEN_VOICES;
   }
 
@@ -54,13 +71,13 @@ export class QwenTTSProvider implements ITTSProvider {
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
-      const res = await fetch(`${this.baseUrl}/tts/custom-voice`, {
+      const res = await fetch(`${this.baseUrl}/synthesize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: options.text,
           speaker: options.voice ?? 'Vivian',
-          language: null,
+          language: 'Auto',
           instruct: null,
         }),
         signal: controller.signal,
@@ -72,17 +89,18 @@ export class QwenTTSProvider implements ITTSProvider {
         throw new Error(`Qwen TTS error: ${res.status} ${res.statusText}`);
       }
 
-      const json = (await res.json()) as { audio_base64: string; sample_rate: number };
-      const audio = Buffer.from(json.audio_base64, 'base64');
-
-      // Estimate duration: 16-bit mono audio
-      const duration = audio.length / (json.sample_rate * 2);
+      const json = (await res.json()) as {
+        audio: string;
+        sample_rate: number;
+        duration_ms: number;
+      };
+      const audio = Buffer.from(json.audio, 'base64');
 
       return {
         audio,
         format: 'wav',
         sampleRate: json.sample_rate,
-        duration,
+        duration: json.duration_ms / 1000,
       };
     } finally {
       clearTimeout(timeoutId);

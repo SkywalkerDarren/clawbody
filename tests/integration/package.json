@@ -5,7 +5,7 @@
   "description": "ClawBody 集成测试",
   "type": "module",
   "scripts": {
-    "test": "tsx src/run-all.ts",
+    "test": "tsx src/gateway.test.ts",
     "test:gateway": "tsx src/gateway.test.ts",
     "test:grpc-live2d": "tsx src/grpc-live2d.ts"
   },
