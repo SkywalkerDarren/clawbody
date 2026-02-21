@@ -25,9 +25,23 @@ logger = logging.getLogger(__name__)
 MODEL_ID = os.getenv("QWEN_TTS_MODEL", "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice")
 DEVICE = os.getenv("QWEN_TTS_DEVICE", "cuda:0")
 DTYPE = torch.bfloat16
+USE_FLASH_ATTN = os.getenv("USE_FLASH_ATTN", "auto")  # auto, true, false
 
 # 全局模型实例
 model = None
+
+
+def _check_flash_attn() -> str | None:
+    """检查 FlashAttention 是否可用"""
+    if USE_FLASH_ATTN == "false":
+        return None
+    try:
+        import flash_attn  # noqa: F401
+        return "flash_attention_2"
+    except ImportError:
+        if USE_FLASH_ATTN == "true":
+            logger.warning("FlashAttention requested but not installed")
+        return None
 
 
 @asynccontextmanager
@@ -37,15 +51,23 @@ async def lifespan(app: FastAPI):
     logger.info(f"Loading Qwen3-TTS model: {MODEL_ID}")
     logger.info(f"Device: {DEVICE}, Dtype: {DTYPE}")
 
+    attn_impl = _check_flash_attn()
+    if attn_impl:
+        logger.info(f"Using attention implementation: {attn_impl}")
+    else:
+        logger.info("Using default attention implementation (no FlashAttention)")
+
     try:
         from qwen_tts import Qwen3TTSModel
 
-        model = Qwen3TTSModel.from_pretrained(
-            MODEL_ID,
-            device_map=DEVICE,
-            dtype=DTYPE,
-            attn_implementation="flash_attention_2",
-        )
+        kwargs = {
+            "device_map": DEVICE,
+            "dtype": DTYPE,
+        }
+        if attn_impl:
+            kwargs["attn_implementation"] = attn_impl
+
+        model = Qwen3TTSModel.from_pretrained(MODEL_ID, **kwargs)
         logger.info("Model loaded successfully")
     except Exception as e:
         logger.error(f"Failed to load model: {e}")
