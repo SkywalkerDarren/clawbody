@@ -109,18 +109,24 @@
           if (defs) Object.keys(defs).forEach(g => { motions[g] = defs[g].length; });
         } catch(e) { console.warn('motion:', e); }
 
-        // Debug: List all model parameters
+        // Debug: List all model parameters (Cubism 2 API)
         try {
           const coreModel = model.internalModel.coreModel;
-          const paramCount = coreModel.getParamCount();
-          console.log('=== Model Parameters ===');
-          for (let i = 0; i < paramCount; i++) {
-            const name = coreModel.getParamId(i);
-            const value = coreModel.getParamFloat(i);
-            const min = coreModel.getParamMin(i);
-            const max = coreModel.getParamMax(i);
-            console.log(`  [${i}] ${name}: ${value} (${min} ~ ${max})`);
+          console.log('=== Core Model ===', coreModel);
+          console.log('=== Core Model methods ===', Object.getOwnPropertyNames(Object.getPrototypeOf(coreModel)));
+
+          // Try to find parameter-related properties
+          if (coreModel._parameterIds) {
+            console.log('Parameter IDs:', coreModel._parameterIds);
           }
+          if (coreModel.paramIdList) {
+            console.log('Param ID List:', coreModel.paramIdList);
+          }
+
+          // Try setting mouth param directly
+          console.log('Testing PARAM_MOUTH_OPEN_Y...');
+          coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', 1.0);
+          setTimeout(() => coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', 0), 1000);
         } catch(e) { console.warn('params:', e); }
 
         fetch('/api/model-ready', {
