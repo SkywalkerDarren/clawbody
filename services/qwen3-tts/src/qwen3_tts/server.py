@@ -253,6 +253,10 @@ async def synthesize(req: SynthesizeRequest):
     - 如果 voice 是自定义声音 ID，使用 clone 模式
     - 否则使用内置声音 (CustomVoice 模型)
     """
+    import time
+    timings = {}
+    start_time = time.time()
+
     if model is None:
         raise HTTPException(503, "Model not loaded")
 
@@ -262,25 +266,36 @@ async def synthesize(req: SynthesizeRequest):
             logger.info(f"Using custom voice: {req.voice}")
             prompt_data = voice_prompts[req.voice]
 
+            infer_start = time.time()
             wavs, sr = model.generate_voice_clone(
                 text=req.text,
                 language=req.language,
                 voice_clone_prompt=prompt_data["prompt"],
             )
+            timings["inference_ms"] = int((time.time() - infer_start) * 1000)
         elif custom_model is not None:
             # 使用内置声音
             logger.info(f"Using builtin voice: {req.voice}")
+            infer_start = time.time()
             wavs, sr = custom_model.generate_custom_voice(
                 text=req.text,
                 language=req.language,
                 speaker=req.voice,
                 instruct=req.instruct or "",
             )
+            timings["inference_ms"] = int((time.time() - infer_start) * 1000)
         else:
             raise HTTPException(400, f"Voice not found: {req.voice}. CustomVoice model not loaded.")
 
+        encode_start = time.time()
         audio_base64 = _wav_to_base64(wavs[0], sr)
+        timings["encode_ms"] = int((time.time() - encode_start) * 1000)
+
         duration_ms = int(len(wavs[0]) / sr * 1000)
+        timings["total_ms"] = int((time.time() - start_time) * 1000)
+        timings["audio_duration_ms"] = duration_ms
+
+        logger.info(f"Synthesis timings: {timings}")
 
         return SynthesisResponse(audio=audio_base64, sample_rate=sr, duration_ms=duration_ms)
     except HTTPException:

@@ -143,6 +143,8 @@ export class HttpServer {
     // POST /api/speak - 简化的说话接口，Brain 只需传文本
     this.app.post('/api/speak', async (req: Request, res: Response) => {
       const { text, emotion } = req.body as { text: string; emotion?: string };
+      const timings: Record<string, number> = {};
+      const startTime = Date.now();
 
       if (!text) {
         send(res, 400, { error: 'text is required' });
@@ -155,44 +157,56 @@ export class HttpServer {
       try {
         // 1. 设置表情 (根据 emotion 或使用默认)
         if (live2d && this.persona) {
+          const exprStart = Date.now();
           const exprName = emotion
             ? this.persona.expressions[emotion] ?? this.persona.expressions['default']
             : this.persona.expressions['default'];
           if (exprName) {
             await live2d.execute('expression', { name: exprName });
           }
+          timings['expression_ms'] = Date.now() - exprStart;
 
           // 2. 触发说话动作 (如果配置了的话)
-          // 注意: speaking 为空时跳过，让前端 model.speak() 自动处理口型
+          const motionStart = Date.now();
           const motionGroup = this.persona.motions['speaking'];
           if (motionGroup) {
             await live2d.execute('motion', { group: motionGroup, index: 0 });
           }
+          timings['motion_ms'] = Date.now() - motionStart;
         }
 
         // 3. 合成语音并播放
         let audioResult: { audio?: Buffer; duration?: number } | null = null;
         if (tts && this.persona) {
+          const ttsStart = Date.now();
           const voiceConfig = this.persona.voice;
           audioResult = (await tts.execute('synthesize', {
             text,
             voice: voiceConfig.id,
             provider: voiceConfig.provider,
           })) as { audio?: Buffer; duration?: number };
+          timings['tts_ms'] = Date.now() - ttsStart;
 
           // 4. 发送音频到前端播放
           if (audioResult?.audio) {
+            const broadcastStart = Date.now();
             const audioBase64 = audioResult.audio.toString('base64');
             this.broadcastWS({ type: 'audio', data: { audio: audioBase64, format: 'wav' } });
             this.broadcastSSE({ audio: audioBase64, format: 'wav' }, 'audio');
+            timings['broadcast_ms'] = Date.now() - broadcastStart;
+            timings['audio_size_kb'] = Math.round(audioResult.audio.length / 1024);
           }
         }
+
+        timings['total_ms'] = Date.now() - startTime;
+        logger.info(MOD, 'speak timings', timings);
 
         send(res, 200, {
           ok: true,
           text,
           emotion: emotion ?? 'default',
           audio: audioResult ? { duration: audioResult.duration } : null,
+          timings,
         });
       } catch (err) {
         logger.error(MOD, 'speak failed', err);
