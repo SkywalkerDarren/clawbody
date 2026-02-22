@@ -210,9 +210,23 @@
 
       const coreModel = model.internalModel.coreModel;
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      let lastValue = 0;
+
+      // Smoothing parameters (inspired by airi/wLipSync)
+      const ATTACK = 50;      // speed opening mouth
+      const RELEASE = 30;     // speed closing mouth
+      const CAP = 0.8;        // max mouth open
+      const SILENCE_THRESHOLD = 10;
+      const IDLE_MS = 160;    // ms before closing mouth on silence
+
+      let smoothedValue = 0;
+      let lastActiveAt = performance.now();
+      let lastFrameTime = performance.now();
 
       lipSyncInterval = setInterval(() => {
+        const now = performance.now();
+        const delta = (now - lastFrameTime) / 1000;  // seconds
+        lastFrameTime = now;
+
         analyser.getByteTimeDomainData(dataArray);
 
         // Calculate amplitude from time domain data
@@ -222,20 +236,28 @@
           if (v > max) max = v;
         }
 
-        // Normalize to 0-1 (max amplitude is 128)
-        const target = Math.min(1, max / 80);
+        // Normalize to 0-1
+        const amplitude = Math.min(1, max / 60);
 
-        // Smooth: fast attack, slow release
-        if (target > lastValue) {
-          lastValue = lastValue * 0.5 + target * 0.5;  // fast open
-        } else {
-          lastValue = lastValue * 0.8 + target * 0.2;  // slow close
-        }
+        // Silence detection
+        let silent = amplitude < SILENCE_THRESHOLD / 128;
+        if (!silent) lastActiveAt = now;
+        if (now - lastActiveAt > IDLE_MS) silent = true;
+
+        // Target value
+        const target = silent ? 0 : Math.min(CAP, amplitude);
+
+        // Exponential smoothing (frame-rate independent)
+        const rate = 1 - Math.exp(-(target > smoothedValue ? ATTACK : RELEASE) * delta);
+        smoothedValue = smoothedValue + (target - smoothedValue) * rate;
+
+        // Apply with small threshold to avoid micro-movements
+        const mouthOpen = smoothedValue < 0.02 ? 0 : smoothedValue;
 
         try {
-          coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', lastValue);
+          coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', mouthOpen);
         } catch (e) {}
-      }, 1000 / 30);
+      }, 1000 / 60);  // 60 FPS
     }
 
     function stopLipSync() {
