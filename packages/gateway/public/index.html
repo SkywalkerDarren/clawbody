@@ -109,24 +109,44 @@
           if (defs) Object.keys(defs).forEach(g => { motions[g] = defs[g].length; });
         } catch(e) { console.warn('motion:', e); }
 
-        // Debug: List all model parameters (Cubism 2 API)
+        // Debug: Explore model structure to find parameter access
         try {
-          const coreModel = model.internalModel.coreModel;
-          console.log('=== Core Model ===', coreModel);
-          console.log('=== Core Model methods ===', Object.getOwnPropertyNames(Object.getPrototypeOf(coreModel)));
+          console.log('=== Model Structure ===');
+          console.log('model:', model);
+          console.log('model.internalModel:', model.internalModel);
 
-          // Try to find parameter-related properties
-          if (coreModel._parameterIds) {
-            console.log('Parameter IDs:', coreModel._parameterIds);
-          }
-          if (coreModel.paramIdList) {
-            console.log('Param ID List:', coreModel.paramIdList);
+          const im = model.internalModel;
+          console.log('internalModel keys:', Object.keys(im));
+
+          // Try different paths to find the actual Live2D model
+          if (im.coreModel) console.log('coreModel:', im.coreModel);
+          if (im.model) console.log('model:', im.model);
+          if (im.motionManager) console.log('motionManager:', im.motionManager);
+
+          // Check for Cubism2Model specific structure
+          if (im.coreModel && im.coreModel.setParamFloat) {
+            console.log('Found setParamFloat on coreModel');
           }
 
-          // Try setting mouth param directly
-          console.log('Testing PARAM_MOUTH_OPEN_Y...');
-          coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', 1.0);
-          setTimeout(() => coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', 0), 1000);
+          // Try the Live2D model directly
+          const live2dModel = im.coreModel?._model || im.coreModel?.model || im._model;
+          if (live2dModel) {
+            console.log('live2dModel:', live2dModel);
+            console.log('live2dModel methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(live2dModel)));
+          }
+
+          // pixi-live2d-display Cubism2 uses different structure
+          // Try accessing through motionManager or directly
+          if (typeof im.coreModel?.setParamFloat === 'function') {
+            console.log('Testing mouth param via coreModel.setParamFloat...');
+            im.coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', 1.0);
+          }
+
+          // Alternative: use model.internalModel directly
+          if (typeof im.setParameterValueById === 'function') {
+            console.log('Found setParameterValueById');
+          }
+
         } catch(e) { console.warn('params:', e); }
 
         fetch('/api/model-ready', {
