@@ -1516,6 +1516,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "qwen-tts" },
     { name = "soundfile" },
+    { name = "sox" },
     { name = "uvicorn" },
 ]
 
@@ -1524,6 +1525,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.129.2" },
     { name = "qwen-tts", specifier = ">=0.1.1" },
     { name = "soundfile", specifier = ">=0.13.1" },
+    { name = "sox", specifier = ">=1.5.0" },
     { name = "uvicorn", specifier = ">=0.41.0" },
 ]
 

@@ -31,5 +31,16 @@ Thumbs.db
 npm-debug.log*
 pnpm-debug.log*
 
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Test outputs
+tests/integration/output/
+
+# Temp files
+services/qwen3-tts/voices/temp_*.wav
+
 # Legacy/external
 qwen-tts-service/

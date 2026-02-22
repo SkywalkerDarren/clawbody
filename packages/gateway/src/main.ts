@@ -4,7 +4,26 @@ import { join } from 'path';
 import { CapabilityRegistry, logger } from '@clawbody/core';
 import { GatewayServer, HttpServer, ServiceDiscovery } from './index.js';
 
+// === 配置类型 ===
+
+export interface PersonaConfig {
+  name: string;
+  voice: {
+    provider: string;
+    id: string;
+    language: string;
+  };
+  model: {
+    path: string;
+    scale?: number;
+    position?: string;
+  };
+  expressions: Record<string, string>;
+  motions: Record<string, string>;
+}
+
 export interface BodyConfig {
+  persona?: PersonaConfig;
   grpc: {
     port: number;
     host?: string;
@@ -22,11 +41,24 @@ export interface BodyConfig {
     live2d?: { enabled?: boolean };
     tts?: {
       enabled?: boolean;
-      defaultProvider?: string;
       providers?: Record<string, { type: string; baseUrl?: string }>;
     };
     vision?: { enabled?: boolean; preferredTool?: string };
   };
+  logging?: {
+    level?: string;
+  };
+}
+
+// 全局配置 (供其他模块访问)
+let globalConfig: BodyConfig | null = null;
+
+export function getConfig(): BodyConfig | null {
+  return globalConfig;
+}
+
+export function getPersona(): PersonaConfig | null {
+  return globalConfig?.persona ?? null;
 }
 
 function loadConfig(): BodyConfig {
@@ -56,8 +88,16 @@ function loadConfig(): BodyConfig {
  */
 async function main(): Promise<void> {
   const config = loadConfig();
+  globalConfig = config;
 
   logger.info('main', 'Starting ClawBody...');
+
+  if (config.persona) {
+    logger.info('main', `Persona: ${config.persona.name}`, {
+      voice: `${config.persona.voice.provider}/${config.persona.voice.id}`,
+      model: config.persona.model.path,
+    });
+  }
 
   // 创建能力注册表
   const registry = new CapabilityRegistry();
@@ -94,12 +134,13 @@ async function main(): Promise<void> {
   }
 
   // 初始化所有能力
+  const defaultProvider = config.persona?.voice.provider ?? 'qwen';
   await registry.initializeAll({
     live2d: {},
     tts: {
-      defaultProvider: config.capabilities?.tts?.defaultProvider ?? 'edge',
+      defaultProvider,
       providers: config.capabilities?.tts?.providers ?? {
-        edge: { type: 'edge' },
+        qwen: { type: 'qwen', baseUrl: 'http://localhost:8765' },
       },
     },
     vision: {
@@ -111,8 +152,8 @@ async function main(): Promise<void> {
   const grpcServer = new GatewayServer(registry);
   await grpcServer.start(config.grpc);
 
-  // 启动 HTTP/WS/SSE 服务器
-  const httpServer = new HttpServer(registry, config.http);
+  // 启动 HTTP/WS/SSE 服务器 (传入 persona 配置)
+  const httpServer = new HttpServer(registry, config.http, config.persona);
   await httpServer.start();
 
   // 启动 mDNS 服务发现

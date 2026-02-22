@@ -14,6 +14,22 @@ export interface HttpServerConfig {
   staticDir?: string;
 }
 
+export interface PersonaConfig {
+  name: string;
+  voice: {
+    provider: string;
+    id: string;
+    language: string;
+  };
+  model: {
+    path: string;
+    scale?: number;
+    position?: string;
+  };
+  expressions: Record<string, string>;
+  motions: Record<string, string>;
+}
+
 /**
  * HTTP/WebSocket/SSE 服务器 - 为前端提供通信接口
  */
@@ -25,12 +41,14 @@ export class HttpServer {
   private sseClients = new Set<Response>();
   private registry: CapabilityRegistry;
   private config: HttpServerConfig;
+  private persona?: PersonaConfig;
   private startTime = Date.now();
   private unsubscribes: Array<() => void> = [];
 
-  constructor(registry: CapabilityRegistry, config: HttpServerConfig) {
+  constructor(registry: CapabilityRegistry, config: HttpServerConfig, persona?: PersonaConfig) {
     this.registry = registry;
     this.config = config;
+    this.persona = persona;
 
     this.app = express();
     this.httpServer = createServer(this.app);
@@ -107,10 +125,119 @@ export class HttpServer {
       });
     });
 
+    // GET /api/persona (获取角色配置)
+    this.app.get('/api/persona', (_req: Request, res: Response) => {
+      if (this.persona) {
+        send(res, 200, { persona: this.persona });
+      } else {
+        send(res, 404, { error: 'No persona configured' });
+      }
+    });
+
     // GET /api/capabilities
     this.app.get('/api/capabilities', (_req: Request, res: Response) => {
       const capabilities = this.registry.getAllMeta();
       send(res, 200, { capabilities });
+    });
+
+    // POST /api/speak - 简化的说话接口，Brain 只需传文本
+    this.app.post('/api/speak', async (req: Request, res: Response) => {
+      const { text, emotion } = req.body as { text: string; emotion?: string };
+
+      if (!text) {
+        send(res, 400, { error: 'text is required' });
+        return;
+      }
+
+      const live2d = this.registry.get('live2d');
+      const tts = this.registry.get('tts');
+
+      try {
+        // 1. 设置表情 (根据 emotion 或使用默认)
+        if (live2d && this.persona) {
+          const exprName = emotion
+            ? this.persona.expressions[emotion] ?? this.persona.expressions['default']
+            : this.persona.expressions['default'];
+          if (exprName) {
+            await live2d.execute('expression', { name: exprName });
+          }
+
+          // 2. 触发说话动作
+          const motionGroup = this.persona.motions['speaking'] ?? 'tap_body';
+          await live2d.execute('motion', { group: motionGroup, index: 0 });
+        }
+
+        // 3. 合成语音 (使用配置的声音)
+        let audioResult = null;
+        if (tts && this.persona) {
+          const voiceConfig = this.persona.voice;
+          audioResult = await tts.execute('synthesize', {
+            text,
+            voice: voiceConfig.id,
+            provider: voiceConfig.provider,
+          });
+        }
+
+        send(res, 200, {
+          ok: true,
+          text,
+          emotion: emotion ?? 'default',
+          audio: audioResult ? { duration: (audioResult as { duration?: number }).duration } : null,
+        });
+      } catch (err) {
+        logger.error(MOD, 'speak failed', err);
+        send(res, 500, { error: 'Speak failed' });
+      }
+    });
+
+    // POST /api/emote - 设置表情
+    this.app.post('/api/emote', async (req: Request, res: Response) => {
+      const { emotion } = req.body as { emotion: string };
+
+      if (!emotion) {
+        send(res, 400, { error: 'emotion is required' });
+        return;
+      }
+
+      const live2d = this.registry.get('live2d');
+      if (!live2d) {
+        send(res, 503, { error: 'Live2D not available' });
+        return;
+      }
+
+      try {
+        const exprName = this.persona?.expressions[emotion] ?? emotion;
+        await live2d.execute('expression', { name: exprName });
+        send(res, 200, { ok: true, emotion, expression: exprName });
+      } catch (err) {
+        logger.error(MOD, 'emote failed', err);
+        send(res, 500, { error: 'Emote failed' });
+      }
+    });
+
+    // POST /api/action - 触发动作
+    this.app.post('/api/action', async (req: Request, res: Response) => {
+      const { action } = req.body as { action: string };
+
+      if (!action) {
+        send(res, 400, { error: 'action is required' });
+        return;
+      }
+
+      const live2d = this.registry.get('live2d');
+      if (!live2d) {
+        send(res, 503, { error: 'Live2D not available' });
+        return;
+      }
+
+      try {
+        const motionGroup = this.persona?.motions[action] ?? action;
+        await live2d.execute('motion', { group: motionGroup, index: 0 });
+        send(res, 200, { ok: true, action, motion: motionGroup });
+      } catch (err) {
+        logger.error(MOD, 'action failed', err);
+        send(res, 500, { error: 'Action failed' });
+      }
     });
 
     // GET /api/model-info (Live2D 模型信息)

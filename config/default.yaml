@@ -1,5 +1,39 @@
 # ClawBody 配置文件
 
+# ============ 角色配置 ============
+# Brain 只需调用 speak(text)，身体根据配置自动处理
+persona:
+  name: "Assistant"
+
+  # 语音配置
+  voice:
+    provider: "qwen"           # edge, qwen
+    id: "1"                    # 声音 ID (内置或自定义)
+    language: "Auto"           # Auto, Chinese, English, Japanese, Korean
+
+  # Live2D 模型配置
+  model:
+    path: "/assets/shizuku.model.json"
+    scale: 0.95
+    position: "bottom-center"  # bottom-center, bottom-left, bottom-right
+
+  # 表情映射 (情绪 -> 表情ID)
+  expressions:
+    default: "f01"
+    happy: "f02"
+    surprised: "f03"
+    shy: "f04"
+
+  # 动作映射 (动作类型 -> 动作组)
+  motions:
+    idle: "idle"
+    speaking: "tap_body"
+    thinking: "idle"
+    greeting: "tap_body"
+    surprised: "shake"
+
+# ============ 服务配置 ============
+
 # gRPC 服务配置
 grpc:
   port: 50051
@@ -16,7 +50,8 @@ discovery:
   enabled: true
   # serviceName: "clawbody-custom"  # 自定义服务名称
 
-# 能力配置
+# ============ 能力配置 ============
+
 capabilities:
   # Live2D 桌面伴侣
   live2d:
@@ -25,7 +60,6 @@ capabilities:
   # TTS 语音合成
   tts:
     enabled: true
-    defaultProvider: "edge"
     providers:
       edge:
         type: "edge"
