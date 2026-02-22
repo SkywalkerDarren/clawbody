@@ -290,68 +290,7 @@ export class VisionCapability implements ICapability<VisionConfig> {
   }
 
   async getCursorPosition(): Promise<{ x: number; y: number } | undefined> {
-    // Try KWin scripting (KDE Wayland)
-    try {
-      const scriptPath = join(tmpdir(), `kwin-cursor-${Date.now()}.js`);
-      const script = 'print(JSON.stringify({x: workspace.cursorPos.x, y: workspace.cursorPos.y}));';
-      await import('fs/promises').then((fs) => fs.writeFile(scriptPath, script));
-
-      // Load and run script
-      const { stdout: scriptId } = await execFileAsync('qdbus', [
-        'org.kde.KWin',
-        '/Scripting',
-        'loadScript',
-        scriptPath,
-      ]);
-
-      await execFileAsync('qdbus', ['org.kde.KWin', '/Scripting', 'start']);
-
-      // Small delay for script execution
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      // Read from journal (KWin scripts output there)
-      const { stdout: journalOut } = await execFileAsync('journalctl', [
-        '--user',
-        '-u',
-        'plasma-kwin_wayland',
-        '-n',
-        '5',
-        '--no-pager',
-        '-o',
-        'cat',
-      ]);
-
-      // Unload script
-      await execFileAsync('qdbus', [
-        'org.kde.KWin',
-        '/Scripting',
-        'unloadScript',
-        scriptId.trim(),
-      ]).catch(() => {});
-
-      // Clean up
-      await import('fs/promises').then((fs) => fs.unlink(scriptPath)).catch(() => {});
-
-      // Parse cursor position from journal
-      const lines = journalOut.split('\n');
-      for (let i = lines.length - 1; i >= 0; i--) {
-        const line = lines[i];
-        if (line && line.startsWith('{') && !line.includes('cursorPos')) {
-          try {
-            const pos = JSON.parse(line) as { x?: number; y?: number };
-            if (typeof pos.x === 'number' && typeof pos.y === 'number') {
-              return { x: pos.x, y: pos.y };
-            }
-          } catch {
-            // Not valid JSON
-          }
-        }
-      }
-    } catch (err) {
-      logger.debug('vision', 'KWin cursor position not available', err);
-    }
-
-    // Fallback: try xdotool (X11 only)
+    // Try xdotool first (works on X11 and KDE Wayland via XWayland)
     try {
       const { stdout } = await execFileAsync('xdotool', ['getmouselocation']);
       const match = stdout.match(/x:(\d+)\s+y:(\d+)/);
