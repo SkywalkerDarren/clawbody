@@ -134,38 +134,27 @@ start_services() {
 
     cd "$PROJECT_ROOT"
 
-    # 创建 tmux session (detached)
-    tmux new-session -d -s "$SESSION_NAME" -x 200 -y 50
+    # 创建 tmux session (detached) 并直接启动 Gateway
+    tmux new-session -d -s "$SESSION_NAME" -x 200 -y 50 \
+        "cd '$PROJECT_ROOT' && pnpm --filter @clawbody/gateway dev; read"
 
-    # 重命名第一个窗口
-    tmux rename-window -t "$SESSION_NAME" "main"
+    # 分割窗口: 左右分割，右边启动 Debug
+    tmux split-window -h -t "$SESSION_NAME" \
+        "cd '$PROJECT_ROOT' && echo '=== Debug Pane ===' && echo 'Ready for debugging commands' && bash"
 
-    # 分割窗口: 左右分割
-    tmux split-window -h -t "$SESSION_NAME:main"
+    # 左边上下分割，下面启动 TTS
+    tmux split-window -v -t "$SESSION_NAME:0.0" \
+        "cd '$PROJECT_ROOT/services/qwen3-tts' && ./start.sh; read"
 
-    # 左边上下分割 (pane 0)
-    tmux split-window -v -t "$SESSION_NAME:main.0"
-
-    # 右边上下分割 (pane 2, 因为左边分割后右边变成 pane 2)
-    tmux split-window -v -t "$SESSION_NAME:main.2"
+    # 右边上下分割，下面显示 Live2D 信息
+    tmux split-window -v -t "$SESSION_NAME:0.2" \
+        "cd '$PROJECT_ROOT' && echo '=== Live2D Pane ===' && echo 'Live2D runs in browser at http://localhost:4000' && bash"
 
     # 布局:
     # 0: 左上 (Gateway)
     # 1: 左下 (TTS)
-    # 2: 右上 (Debug - 预留)
-    # 3: 右下 (Live2D - 预留)
-
-    # Pane 0: Gateway (左上)
-    tmux send-keys -t "$SESSION_NAME:main.0" "cd '$PROJECT_ROOT' && pnpm --filter @clawbody/gateway dev" C-m
-
-    # Pane 1: TTS (左下)
-    tmux send-keys -t "$SESSION_NAME:main.1" "cd '$PROJECT_ROOT/services/qwen3-tts' && ./start.sh" C-m
-
-    # Pane 2: Debug (右上) - 预留，显示提示
-    tmux send-keys -t "$SESSION_NAME:main.2" "cd '$PROJECT_ROOT' && echo '=== Debug Pane ===' && echo 'Ready for debugging commands'" C-m
-
-    # Pane 3: Live2D (右下) - 预留
-    tmux send-keys -t "$SESSION_NAME:main.3" "cd '$PROJECT_ROOT' && echo '=== Live2D Pane ===' && echo 'Live2D runs in browser at http://localhost:4000'" C-m
+    # 2: 右上 (Debug)
+    # 3: 右下 (Live2D)
 
     success "服务已在后台启动"
     echo ""
