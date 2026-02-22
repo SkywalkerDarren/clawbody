@@ -86,12 +86,14 @@ export class TTSCapability implements ICapability<TTSConfig> {
 
       try {
         const provider = factory(providerConfig);
+        // Register provider regardless of availability (check at runtime)
+        this.providers.set(name, provider);
+
         const available = await provider.isAvailable();
         if (available) {
-          this.providers.set(name, provider);
-          logger.info('tts', `Provider registered: ${provider.name}`, { id: name });
+          logger.info('tts', `Provider registered and ready: ${provider.name}`, { id: name });
         } else {
-          logger.warn('tts', `Provider not available: ${provider.name}`, { id: name });
+          logger.warn('tts', `Provider registered but not yet available: ${provider.name}`, { id: name });
         }
       } catch (err) {
         logger.error('tts', `Failed to create provider: ${name}`, err);
