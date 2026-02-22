@@ -1,0 +1,11 @@
+{
+  "id": "presence",
+  "name": "Presence (ClawBody)",
+  "description": "Forwards AI replies to ClawBody for Live2D + TTS output.",
+  "channels": ["presence"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
