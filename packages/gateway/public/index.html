@@ -210,6 +210,7 @@
 
       const coreModel = model.internalModel.coreModel;
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let lastValue = 0;
 
       lipSyncInterval = setInterval(() => {
         analyser.getByteTimeDomainData(dataArray);
@@ -222,10 +223,17 @@
         }
 
         // Normalize to 0-1 (max amplitude is 128)
-        const mouthOpen = Math.min(1, max / 80);
+        const target = Math.min(1, max / 80);
+
+        // Smooth: fast attack, slow release
+        if (target > lastValue) {
+          lastValue = lastValue * 0.5 + target * 0.5;  // fast open
+        } else {
+          lastValue = lastValue * 0.8 + target * 0.2;  // slow close
+        }
 
         try {
-          coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', mouthOpen);
+          coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', lastValue);
         } catch (e) {}
       }, 1000 / 30);
     }
