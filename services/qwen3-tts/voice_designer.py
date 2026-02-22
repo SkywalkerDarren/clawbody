@@ -244,6 +244,7 @@ def cmd_interactive(args):
     language = "Chinese"
     last_wav = None
     last_sr = None
+    last_instruct = None  # 保存最后使用的 instruct
 
     while True:
         try:
@@ -293,6 +294,7 @@ def cmd_interactive(args):
                     instruct=arg,
                 )
                 last_wav, last_sr = wavs[0], sr
+                last_instruct = arg  # 保存 instruct
 
                 # 保存临时文件
                 temp_file = OUTPUT_DIR / "temp_design.wav"
@@ -381,7 +383,25 @@ def cmd_interactive(args):
                 filename = f"{name}.wav"
                 filepath = OUTPUT_DIR / filename
                 sf.write(filepath, last_wav, last_sr)
+
+                # 更新声音库
+                duration_ms = int(len(last_wav) / last_sr * 1000)
+                lib = load_library()
+                lib["voices"].append({
+                    "id": name,
+                    "type": "design",
+                    "file": filename,
+                    "text": test_text,
+                    "instruct": last_instruct or "",
+                    "language": language,
+                    "duration_ms": duration_ms,
+                    "created_at": datetime.now().isoformat(),
+                })
+                save_library(lib)
+
                 print(f"✅ 已保存: {filepath}")
+                print(f"   声音 ID: {name}")
+                print(f"   可在 TTS 服务中使用: voice=\"{name}\"")
 
             elif cmd == "list":
                 cmd_list(None)
