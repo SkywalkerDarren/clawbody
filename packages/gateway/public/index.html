@@ -170,10 +170,21 @@
     let streamingLipSyncInterval = null;
     const SAMPLE_RATE = 24000;  // Qwen3-TTS output sample rate
 
+    // Debug stats
+    let streamingStats = {
+      chunksReceived: 0,
+      chunksPlayed: 0,
+      totalSamples: 0,
+      errors: [],
+    };
+
     function handleStreamingChunk(data) {
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+        console.log('[stream] AudioContext created, sampleRate:', audioContext.sampleRate);
       }
+
+      streamingStats.chunksReceived++;
 
       // Decode base64 PCM float32 to Float32Array
       const binary = atob(data.audio);
@@ -183,11 +194,29 @@
       }
       const float32 = new Float32Array(bytes.buffer);
 
+      // Validate audio data
+      let maxVal = 0, minVal = 0;
+      for (let i = 0; i < float32.length; i++) {
+        if (float32[i] > maxVal) maxVal = float32[i];
+        if (float32[i] < minVal) minVal = float32[i];
+      }
+
+      console.log(`[stream] Chunk ${data.chunk}: ${float32.length} samples, range [${minVal.toFixed(3)}, ${maxVal.toFixed(3)}]`);
+
+      // Check for invalid data
+      if (maxVal === 0 && minVal === 0) {
+        console.warn('[stream] Chunk is silent!');
+      }
+      if (maxVal > 1.5 || minVal < -1.5) {
+        console.warn('[stream] Chunk has out-of-range values, may cause distortion');
+      }
+
       // Create AudioBuffer
       const audioBuffer = audioContext.createBuffer(1, float32.length, SAMPLE_RATE);
       audioBuffer.getChannelData(0).set(float32);
 
-      streamingQueue.push(audioBuffer);
+      streamingQueue.push({ buffer: audioBuffer, chunk: data.chunk });
+      streamingStats.totalSamples += float32.length;
 
       if (data.chunk === 1) {
         setStatus(`streaming... (${data.first_chunk_ms}ms)`);
@@ -198,6 +227,7 @@
     function startStreamingPlayback() {
       if (isStreamingPlaying) return;
       isStreamingPlaying = true;
+      console.log('[stream] Starting playback');
 
       // Create analyser for lip sync
       streamingAnalyser = audioContext.createAnalyser();
@@ -211,6 +241,7 @@
     }
 
     let nextChunkTime = 0;
+    let lastPlayedChunk = 0;
 
     function playNextStreamingChunk() {
       if (streamingQueue.length === 0) {
@@ -218,12 +249,15 @@
         setTimeout(() => {
           if (streamingQueue.length > 0) {
             playNextStreamingChunk();
+          } else if (!isStreamingPlaying) {
+            console.log('[stream] Queue empty and streaming finished');
           }
         }, 50);
         return;
       }
 
-      const buffer = streamingQueue.shift();
+      const item = streamingQueue.shift();
+      const buffer = item.buffer;
       const source = audioContext.createBufferSource();
       source.buffer = buffer;
       source.connect(streamingAnalyser);
@@ -231,10 +265,19 @@
       // Schedule playback
       const now = audioContext.currentTime;
       if (nextChunkTime < now) {
+        if (nextChunkTime > 0) {
+          console.warn(`[stream] Buffer underrun! Gap: ${((now - nextChunkTime) * 1000).toFixed(1)}ms`);
+        }
         nextChunkTime = now;
       }
+
       source.start(nextChunkTime);
-      nextChunkTime += buffer.duration;
+      const chunkDuration = buffer.duration;
+      console.log(`[stream] Playing chunk ${item.chunk} at ${nextChunkTime.toFixed(3)}s, duration: ${(chunkDuration * 1000).toFixed(1)}ms`);
+
+      nextChunkTime += chunkDuration;
+      lastPlayedChunk = item.chunk;
+      streamingStats.chunksPlayed++;
 
       source.onended = () => {
         if (streamingQueue.length > 0 || isStreamingPlaying) {
@@ -244,12 +287,23 @@
     }
 
     function finishStreaming() {
+      console.log('[stream] Finish signal received', streamingStats);
+
       // Wait for queue to drain, then stop
       const checkDone = () => {
-        if (streamingQueue.length === 0 && audioContext.currentTime >= nextChunkTime - 0.1) {
+        const now = audioContext ? audioContext.currentTime : 0;
+        const queueEmpty = streamingQueue.length === 0;
+        const playbackDone = now >= nextChunkTime - 0.05;
+
+        console.log(`[stream] Check done: queue=${streamingQueue.length}, now=${now.toFixed(3)}, nextChunk=${nextChunkTime.toFixed(3)}, done=${queueEmpty && playbackDone}`);
+
+        if (queueEmpty && playbackDone) {
           isStreamingPlaying = false;
           stopStreamingLipSync();
           setStatus('✓ Ready');
+          console.log('[stream] Playback complete', streamingStats);
+          // Reset stats
+          streamingStats = { chunksReceived: 0, chunksPlayed: 0, totalSamples: 0, errors: [] };
         } else {
           setTimeout(checkDone, 100);
         }
@@ -258,7 +312,10 @@
     }
 
     function startStreamingLipSync() {
-      if (!model || !streamingAnalyser) return;
+      if (!model || !streamingAnalyser) {
+        console.warn('[lipsync] Cannot start: model or analyser missing');
+        return;
+      }
 
       const coreModel = model.internalModel.coreModel;
       const dataArray = new Uint8Array(streamingAnalyser.frequencyBinCount);
@@ -272,11 +329,16 @@
       let smoothedValue = 0;
       let lastActiveAt = performance.now();
       let lastFrameTime = performance.now();
+      let frameCount = 0;
+      let lastLogTime = 0;
+
+      console.log('[lipsync] Starting streaming lip sync');
 
       streamingLipSyncInterval = setInterval(() => {
         const now = performance.now();
         const delta = (now - lastFrameTime) / 1000;
         lastFrameTime = now;
+        frameCount++;
 
         streamingAnalyser.getByteTimeDomainData(dataArray);
 
@@ -297,13 +359,22 @@
 
         const mouthOpen = smoothedValue < 0.02 ? 0 : smoothedValue;
 
+        // Log every second
+        if (now - lastLogTime > 1000) {
+          console.log(`[lipsync] frame=${frameCount}, amp=${amplitude.toFixed(3)}, mouth=${mouthOpen.toFixed(3)}, silent=${silent}`);
+          lastLogTime = now;
+        }
+
         try {
           coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', mouthOpen);
-        } catch (e) {}
+        } catch (e) {
+          console.error('[lipsync] setParamFloat error:', e);
+        }
       }, 1000 / 60);
     }
 
     function stopStreamingLipSync() {
+      console.log('[lipsync] Stopping streaming lip sync');
       if (streamingLipSyncInterval) {
         clearInterval(streamingLipSyncInterval);
         streamingLipSyncInterval = null;
@@ -314,6 +385,7 @@
         } catch (e) {}
       }
       nextChunkTime = 0;
+      lastPlayedChunk = 0;
     }
 
     // Non-streaming audio playback with lip sync (for /api/speak)
