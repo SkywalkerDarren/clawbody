@@ -162,9 +162,12 @@ export class HttpServer {
             await live2d.execute('expression', { name: exprName });
           }
 
-          // 2. 触发说话动作
-          const motionGroup = this.persona.motions['speaking'] ?? 'tap_body';
-          await live2d.execute('motion', { group: motionGroup, index: 0 });
+          // 2. 触发说话动作 (如果配置了的话)
+          // 注意: speaking 为空时跳过，让前端 model.speak() 自动处理口型
+          const motionGroup = this.persona.motions['speaking'];
+          if (motionGroup) {
+            await live2d.execute('motion', { group: motionGroup, index: 0 });
+          }
         }
 
         // 3. 合成语音并播放

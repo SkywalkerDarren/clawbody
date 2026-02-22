@@ -25,11 +25,12 @@ persona:
     shy: "f04"
 
   # 动作映射 (动作类型 -> 动作组)
+  # 注意: speaking 设为空字符串，让 model.speak() 自动处理口型
   motions:
     idle: "idle"
-    speaking: "tap_body"
+    speaking: ""
     thinking: "idle"
-    greeting: "tap_body"
+    greeting: "flick_head"
     surprised: "shake"
 
 # ============ 服务配置 ============
