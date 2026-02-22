@@ -152,42 +152,116 @@
     }
 
     // Audio playback with lip sync
+    let audioContext = null;
+    let analyser = null;
+    let lipSyncInterval = null;
+
     async function speakWithLipSync(base64, format) {
       try {
-        // Convert base64 to blob URL
+        // Convert base64 to ArrayBuffer
         const binary = atob(base64);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) {
           bytes[i] = binary.charCodeAt(i);
         }
-        const mimeType = format === 'mp3' ? 'audio/mpeg' : 'audio/wav';
-        const blob = new Blob([bytes], { type: mimeType });
-        const blobUrl = URL.createObjectURL(blob);
 
         setStatus('speaking...');
 
-        if (model && typeof model.speak === 'function') {
-          try {
-            // pixi-live2d-display speak() returns a Promise
-            await model.speak(blobUrl, { volume: 1.0 });
-            setStatus('✓ Ready');
-          } catch (err) {
-            console.warn('model.speak() failed, using fallback:', err);
-            await playAudioSimple(blobUrl);
-          }
-        } else {
-          // No model or no speak method, just play audio
-          await playAudioSimple(blobUrl);
+        // Initialize AudioContext
+        if (!audioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
         }
 
-        URL.revokeObjectURL(blobUrl);
+        // Decode audio
+        const audioBuffer = await audioContext.decodeAudioData(bytes.buffer.slice(0));
+
+        // Create nodes
+        const source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+
+        source.connect(analyser);
+        analyser.connect(audioContext.destination);
+
+        // Start lip sync animation
+        startLipSync();
+
+        // Play audio
+        source.start(0);
+        source.onended = () => {
+          stopLipSync();
+          setStatus('✓ Ready');
+        };
+
       } catch (err) {
         console.error('Audio playback error:', err);
         setStatus('audio error: ' + err.message);
+        stopLipSync();
       }
     }
 
-    // Simple audio playback
+    function startLipSync() {
+      if (!model || !analyser) return;
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      lipSyncInterval = setInterval(() => {
+        analyser.getByteFrequencyData(dataArray);
+
+        // Calculate average volume (focus on voice frequencies 100-1000Hz)
+        let sum = 0;
+        const startBin = Math.floor(100 / (audioContext.sampleRate / analyser.fftSize));
+        const endBin = Math.floor(1000 / (audioContext.sampleRate / analyser.fftSize));
+        for (let i = startBin; i < endBin && i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const avg = sum / (endBin - startBin);
+
+        // Normalize to 0-1 range
+        const mouthOpen = Math.min(1, avg / 128);
+
+        // Set mouth parameter (try common parameter names)
+        try {
+          const coreModel = model.internalModel.coreModel;
+          // Cubism 2 parameter names
+          const paramNames = ['PARAM_MOUTH_OPEN_Y', 'ParamMouthOpenY', 'mouth_open'];
+          for (const name of paramNames) {
+            const paramIndex = coreModel.getParamIndex(name);
+            if (paramIndex >= 0) {
+              coreModel.setParamFloat(paramIndex, mouthOpen);
+              break;
+            }
+          }
+        } catch (e) {
+          // Ignore parameter errors
+        }
+      }, 1000 / 30); // 30 FPS
+    }
+
+    function stopLipSync() {
+      if (lipSyncInterval) {
+        clearInterval(lipSyncInterval);
+        lipSyncInterval = null;
+      }
+      // Reset mouth to closed
+      if (model) {
+        try {
+          const coreModel = model.internalModel.coreModel;
+          const paramNames = ['PARAM_MOUTH_OPEN_Y', 'ParamMouthOpenY', 'mouth_open'];
+          for (const name of paramNames) {
+            const paramIndex = coreModel.getParamIndex(name);
+            if (paramIndex >= 0) {
+              coreModel.setParamFloat(paramIndex, 0);
+              break;
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    // Simple audio playback (fallback)
     function playAudioSimple(url) {
       return new Promise((resolve, reject) => {
         const audio = new Audio(url);
