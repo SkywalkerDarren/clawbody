@@ -109,40 +109,8 @@
           if (defs) Object.keys(defs).forEach(g => { motions[g] = defs[g].length; });
         } catch(e) { console.warn('motion:', e); }
 
-        // Debug: Find mouth parameter
-        try {
-          const coreModel = model.internalModel.coreModel;
-          console.log('=== Finding mouth parameter ===');
-
-          // Cubism 2 uses setParamFloat with string ID
-          // Common mouth params: PARAM_MOUTH_OPEN_Y, PARAM_MOUTH_FORM
-          const testParams = [
-            'PARAM_MOUTH_OPEN_Y',
-            'PARAM_MOUTH_FORM',
-            'ParamMouthOpenY',
-            'ParamMouthForm'
-          ];
-
-          for (const param of testParams) {
-            try {
-              coreModel.setParamFloat(param, 1.0);
-              console.log(`✓ ${param} works!`);
-              setTimeout(() => coreModel.setParamFloat(param, 0), 500);
-            } catch (e) {
-              console.log(`✗ ${param} failed`);
-            }
-          }
-
-          // Also check if there's a getParamIndex method
-          if (coreModel.getParamIndex) {
-            console.log('getParamIndex exists');
-            for (const param of testParams) {
-              const idx = coreModel.getParamIndex(param);
-              console.log(`  ${param} -> index ${idx}`);
-            }
-          }
-
-        } catch(e) { console.warn('params:', e); }
+        // Debug: mouth parameter confirmed
+        // PARAM_MOUTH_OPEN_Y (index 17) works for lip sync
 
         fetch('/api/model-ready', {
           method: 'POST',
@@ -240,6 +208,7 @@
     function startLipSync() {
       if (!model || !analyser) return;
 
+      const coreModel = model.internalModel.coreModel;
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
       lipSyncInterval = setInterval(() => {
@@ -254,24 +223,14 @@
         }
         const avg = sum / (endBin - startBin);
 
-        // Normalize to 0-1 range
-        const mouthOpen = Math.min(1, avg / 128);
+        // Normalize to 0-1 range with threshold
+        const threshold = 20;
+        const mouthOpen = avg > threshold ? Math.min(1, (avg - threshold) / 100) : 0;
 
-        // Set mouth parameter (try common parameter names)
+        // Set mouth parameter using Cubism 2 API
         try {
-          const coreModel = model.internalModel.coreModel;
-          // Cubism 2 parameter names
-          const paramNames = ['PARAM_MOUTH_OPEN_Y', 'ParamMouthOpenY', 'mouth_open'];
-          for (const name of paramNames) {
-            const paramIndex = coreModel.getParamIndex(name);
-            if (paramIndex >= 0) {
-              coreModel.setParamFloat(paramIndex, mouthOpen);
-              break;
-            }
-          }
-        } catch (e) {
-          // Ignore parameter errors
-        }
+          coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', mouthOpen);
+        } catch (e) {}
       }, 1000 / 30); // 30 FPS
     }
 
@@ -283,15 +242,7 @@
       // Reset mouth to closed
       if (model) {
         try {
-          const coreModel = model.internalModel.coreModel;
-          const paramNames = ['PARAM_MOUTH_OPEN_Y', 'ParamMouthOpenY', 'mouth_open'];
-          for (const name of paramNames) {
-            const paramIndex = coreModel.getParamIndex(name);
-            if (paramIndex >= 0) {
-              coreModel.setParamFloat(paramIndex, 0);
-              break;
-            }
-          }
+          model.internalModel.coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', 0);
         } catch (e) {}
       }
     }
