@@ -138,23 +138,23 @@ start_services() {
     tmux new-session -d -s "$SESSION_NAME" -x 200 -y 50
 
     # 分割成 4 个 pane
-    # 先左右分割
+    # 先左右分割: pane 0 (左), pane 1 (右)
     tmux split-window -h -t "$SESSION_NAME"
-    # 左边上下分割
+    # 左边上下分割: pane 0 (左上), pane 2 (左下), pane 1 (右)
     tmux split-window -v -t "$SESSION_NAME:0.0"
-    # 右边上下分割
-    tmux split-window -v -t "$SESSION_NAME:0.2"
+    # 右边上下分割: pane 0 (左上), pane 2 (左下), pane 1 (右上), pane 3 (右下)
+    tmux split-window -v -t "$SESSION_NAME:0.1"
 
-    # 现在 pane 布局:
+    # pane 布局:
     # 0: 左上 (Gateway)
-    # 1: 左下 (TTS)
-    # 2: 右上 (Debug)
+    # 2: 左下 (TTS)
+    # 1: 右上 (Debug)
     # 3: 右下 (Live2D)
 
     # 发送命令到各个 pane
     tmux send-keys -t "$SESSION_NAME:0.0" "cd '$PROJECT_ROOT' && pnpm --filter @clawbody/gateway dev" C-m
-    tmux send-keys -t "$SESSION_NAME:0.1" "cd '$PROJECT_ROOT/services/qwen3-tts' && ./start.sh" C-m
-    tmux send-keys -t "$SESSION_NAME:0.2" "echo '=== Debug Pane ===' && cd '$PROJECT_ROOT'" C-m
+    tmux send-keys -t "$SESSION_NAME:0.2" "cd '$PROJECT_ROOT/services/qwen3-tts' && ./start.sh" C-m
+    tmux send-keys -t "$SESSION_NAME:0.1" "echo '=== Debug Pane ===' && cd '$PROJECT_ROOT'" C-m
     tmux send-keys -t "$SESSION_NAME:0.3" "echo '=== Live2D: http://localhost:4000 ===' && cd '$PROJECT_ROOT'" C-m
 
     success "服务已在后台启动"
