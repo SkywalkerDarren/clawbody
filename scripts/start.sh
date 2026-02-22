@@ -46,27 +46,25 @@ check_port() {
     return 1  # 端口空闲
 }
 
-# 检查服务是否运行
+# 检查服务是否运行 (返回 0 表示有服务在运行)
 check_services() {
-    local running=0
-
     if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-        running=1
+        return 0
     fi
 
     if check_port 4000 "Gateway HTTP"; then
-        running=1
+        return 0
     fi
 
     if check_port 50051 "Gateway gRPC"; then
-        running=1
+        return 0
     fi
 
     if check_port 8765 "TTS"; then
-        running=1
+        return 0
     fi
 
-    return $running
+    return 1  # 没有服务在运行
 }
 
 # 优雅关闭服务
