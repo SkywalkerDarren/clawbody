@@ -142,8 +142,7 @@
       es.addEventListener('audio', (e) => {
         const { audio, format } = JSON.parse(e.data);
         if (audio) {
-          playAudio(audio, format);
-          setStatus('playing audio...');
+          speakWithLipSync(audio, format);
         }
       });
       es.onerror = () => {
@@ -152,31 +151,56 @@
       };
     }
 
-    // Audio playback
-    let audioContext = null;
-    function playAudio(base64, format) {
+    // Audio playback with lip sync
+    function speakWithLipSync(base64, format) {
       try {
-        if (!audioContext) {
-          audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
+        // Convert base64 to blob URL
         const binary = atob(base64);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) {
           bytes[i] = binary.charCodeAt(i);
         }
-        audioContext.decodeAudioData(bytes.buffer, (buffer) => {
-          const source = audioContext.createBufferSource();
-          source.buffer = buffer;
-          source.connect(audioContext.destination);
-          source.start(0);
-          source.onended = () => setStatus('✓ Ready');
-        }, (err) => {
-          console.error('Audio decode error:', err);
-          setStatus('audio error');
-        });
+        const mimeType = format === 'mp3' ? 'audio/mpeg' : 'audio/wav';
+        const blob = new Blob([bytes], { type: mimeType });
+        const blobUrl = URL.createObjectURL(blob);
+
+        if (model) {
+          setStatus('speaking...');
+          // Use model.speak() for automatic lip sync
+          model.speak(blobUrl, {
+            volume: 1.0,
+            onFinish: () => {
+              URL.revokeObjectURL(blobUrl);
+              setStatus('✓ Ready');
+            },
+            onError: (err) => {
+              console.error('Speak error:', err);
+              URL.revokeObjectURL(blobUrl);
+              // Fallback to regular audio playback
+              playAudioFallback(blobUrl);
+            }
+          });
+        } else {
+          // No model, just play audio
+          playAudioFallback(blobUrl);
+        }
       } catch (err) {
         console.error('Audio playback error:', err);
+        setStatus('audio error');
       }
+    }
+
+    // Fallback audio playback without lip sync
+    function playAudioFallback(url) {
+      const audio = new Audio(url);
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        setStatus('✓ Ready');
+      };
+      audio.play().catch(err => {
+        console.error('Fallback audio error:', err);
+        setStatus('audio error');
+      });
     }
 
     loadModel();
