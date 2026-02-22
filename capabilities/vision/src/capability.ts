@@ -317,7 +317,13 @@ export class VisionCapability implements ICapability<VisionConfig> {
   }
 
   async getCursorPosition(): Promise<{ x: number; y: number } | undefined> {
-    // Try xdotool first (works on X11 and KDE Wayland via XWayland)
+    // xdotool only works reliably on X11, not on Wayland
+    if (this.isWayland) {
+      logger.debug('vision', 'Cursor position not available on Wayland (xdotool limitation)');
+      return undefined;
+    }
+
+    // Try xdotool (X11 only)
     try {
       const { stdout } = await execFileAsync('xdotool', ['getmouselocation']);
       const match = stdout.match(/x:(\d+)\s+y:(\d+)/);
