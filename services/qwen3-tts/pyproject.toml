@@ -1,7 +1,7 @@
 [project]
 name = "qwen3-tts"
-version = "0.1.0"
-description = "Qwen3-TTS 本地语音合成服务"
+version = "0.2.0"
+description = "Qwen3-TTS 本地语音合成服务 (流式版本)"
 readme = "README.md"
 authors = [
     { name = "SkywalkerDarren", email = "yh322yh@outlook.com" }
@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.129.2",
-    "qwen-tts>=0.1.1",
+    "qwen-tts @ git+https://github.com/rekuenkdr/Qwen3-TTS-streaming.git",
     "soundfile>=0.13.1",
     "sox>=1.5.0",
     "uvicorn>=0.41.0",

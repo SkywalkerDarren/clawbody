@@ -1,7 +1,7 @@
 """
 Qwen3-TTS FastAPI 服务
 
-提供 HTTP API 用于语音合成，支持自定义声音
+提供 HTTP API 用于语音合成，支持自定义声音和流式输出
 """
 
 import base64
@@ -12,12 +12,13 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import numpy as np
 import soundfile as sf
 import torch
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 logging.basicConfig(level=logging.INFO)
@@ -121,6 +122,17 @@ async def lifespan(app: FastAPI):
         # 加载 Base 模型 (用于 clone)
         model = Qwen3TTSModel.from_pretrained(MODEL_ID, **kwargs)
         logger.info("Base model loaded successfully")
+
+        # 启用流式优化
+        try:
+            model.enable_streaming_optimizations(
+                decode_window_frames=80,
+                use_compile=True,
+                compile_mode="reduce-overhead",
+            )
+            logger.info("Streaming optimizations enabled")
+        except Exception as e:
+            logger.warning(f"Failed to enable streaming optimizations: {e}")
 
         # 加载自定义声音配置
         _load_voice_profiles()
@@ -303,6 +315,90 @@ async def synthesize(req: SynthesizeRequest):
     except Exception as e:
         logger.error(f"Synthesis failed: {e}")
         raise HTTPException(500, f"Synthesis failed: {e}")
+
+
+@app.post("/synthesize/stream")
+async def synthesize_stream(req: SynthesizeRequest):
+    """
+    流式合成接口
+
+    返回 SSE 流，每个事件包含一个音频 chunk (PCM float32)
+    """
+    if model is None:
+        raise HTTPException(503, "Model not loaded")
+
+    # 检查是否是自定义声音
+    if req.voice not in voice_prompts:
+        raise HTTPException(400, f"Voice not found: {req.voice}. Streaming only supports custom voices.")
+
+    prompt_data = voice_prompts[req.voice]
+
+    async def generate():
+        import time
+        start_time = time.time()
+        chunk_count = 0
+        total_samples = 0
+
+        try:
+            logger.info(f"Starting streaming synthesis for voice: {req.voice}")
+
+            for chunk, sr in model.stream_generate_voice_clone(
+                text=req.text,
+                language=req.language,
+                voice_clone_prompt=prompt_data["prompt"],
+                emit_every_frames=12,
+                decode_window_frames=80,
+                first_chunk_emit_every=5,
+                first_chunk_decode_window=48,
+                first_chunk_frames=48,
+            ):
+                chunk_count += 1
+                total_samples += len(chunk)
+
+                # Convert to float32 PCM and encode as base64
+                if chunk.dtype != np.float32:
+                    chunk = chunk.astype(np.float32)
+                audio_b64 = base64.b64encode(chunk.tobytes()).decode()
+
+                event_data = {
+                    "audio": audio_b64,
+                    "sr": sr,
+                    "chunk": chunk_count,
+                    "samples": len(chunk),
+                }
+
+                if chunk_count == 1:
+                    event_data["first_chunk_ms"] = int((time.time() - start_time) * 1000)
+                    logger.info(f"First chunk latency: {event_data['first_chunk_ms']}ms")
+
+                yield f"data: {json.dumps(event_data)}\n\n"
+
+            # Send done event
+            total_ms = int((time.time() - start_time) * 1000)
+            duration_ms = int(total_samples / sr * 1000) if sr else 0
+            done_data = {
+                "done": True,
+                "chunks": chunk_count,
+                "total_samples": total_samples,
+                "duration_ms": duration_ms,
+                "total_ms": total_ms,
+            }
+            logger.info(f"Streaming complete: {chunk_count} chunks, {duration_ms}ms audio, {total_ms}ms total")
+            yield f"data: {json.dumps(done_data)}\n\n"
+
+        except Exception as e:
+            logger.error(f"Streaming synthesis failed: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/synthesize/clone", response_model=SynthesisResponse)
