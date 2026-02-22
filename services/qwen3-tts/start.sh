@@ -12,7 +12,7 @@ if ! command -v uv &> /dev/null; then
 fi
 
 # 设置环境变量
-export QWEN_TTS_MODEL="${QWEN_TTS_MODEL:-Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice}"
+export QWEN_TTS_MODEL="${QWEN_TTS_MODEL:-Qwen/Qwen3-TTS-12Hz-1.7B-Base}"
 export QWEN_TTS_DEVICE="${QWEN_TTS_DEVICE:-cuda:0}"
 export HOST="${HOST:-0.0.0.0}"
 export PORT="${PORT:-8765}"
