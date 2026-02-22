@@ -8,8 +8,8 @@ persona:
   # 语音配置
   voice:
     provider: "qwen"           # edge, qwen
-    id: "1"                    # 声音 ID (内置或自定义)
-    language: "Auto"           # Auto, Chinese, English, Japanese, Korean
+    id: "2"                    # 声音 ID (内置或自定义)
+    language: "Chinese"           # Auto, Chinese, English, Japanese, Korean
 
   # Live2D 模型配置
   model:
