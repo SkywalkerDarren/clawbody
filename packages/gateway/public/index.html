@@ -169,6 +169,7 @@
     let streamingAnalyser = null;
     let streamingLipSyncInterval = null;
     const SAMPLE_RATE = 24000;  // Qwen3-TTS output sample rate
+    const PRE_BUFFER_CHUNKS = 3;  // Wait for N chunks before starting playback
 
     // Debug stats
     let streamingStats = {
@@ -181,7 +182,12 @@
     function handleStreamingChunk(data) {
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
-        console.log('[stream] AudioContext created, sampleRate:', audioContext.sampleRate);
+        console.log('[stream] AudioContext created, sampleRate:', audioContext.sampleRate, 'state:', audioContext.state);
+      }
+
+      // Resume if suspended (autoplay policy)
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
       }
 
       streamingStats.chunksReceived++;
@@ -220,6 +226,10 @@
 
       if (data.chunk === 1) {
         setStatus(`streaming... (${data.first_chunk_ms}ms)`);
+      }
+
+      // Start playback after pre-buffering
+      if (!isStreamingPlaying && streamingQueue.length >= PRE_BUFFER_CHUNKS) {
         startStreamingPlayback();
       }
     }
@@ -227,7 +237,7 @@
     function startStreamingPlayback() {
       if (isStreamingPlaying) return;
       isStreamingPlaying = true;
-      console.log('[stream] Starting playback');
+      console.log('[stream] Starting playback with', streamingQueue.length, 'chunks buffered');
 
       // Create analyser for lip sync
       streamingAnalyser = audioContext.createAnalyser();
@@ -237,6 +247,8 @@
       // Start lip sync
       startStreamingLipSync();
 
+      // Reset timing
+      nextChunkTime = audioContext.currentTime + 0.05;  // Small initial delay
       playNextStreamingChunk();
     }
 
@@ -252,7 +264,7 @@
           } else if (!isStreamingPlaying) {
             console.log('[stream] Queue empty and streaming finished');
           }
-        }, 50);
+        }, 30);
         return;
       }
 
@@ -265,7 +277,7 @@
       // Schedule playback
       const now = audioContext.currentTime;
       if (nextChunkTime < now) {
-        if (nextChunkTime > 0) {
+        if (lastPlayedChunk > 0) {
           console.warn(`[stream] Buffer underrun! Gap: ${((now - nextChunkTime) * 1000).toFixed(1)}ms`);
         }
         nextChunkTime = now;
@@ -273,29 +285,37 @@
 
       source.start(nextChunkTime);
       const chunkDuration = buffer.duration;
-      console.log(`[stream] Playing chunk ${item.chunk} at ${nextChunkTime.toFixed(3)}s, duration: ${(chunkDuration * 1000).toFixed(1)}ms`);
+      console.log(`[stream] Playing chunk ${item.chunk} at ${nextChunkTime.toFixed(3)}s, duration: ${(chunkDuration * 1000).toFixed(1)}ms, queue: ${streamingQueue.length}`);
 
       nextChunkTime += chunkDuration;
       lastPlayedChunk = item.chunk;
       streamingStats.chunksPlayed++;
 
-      source.onended = () => {
-        if (streamingQueue.length > 0 || isStreamingPlaying) {
-          playNextStreamingChunk();
-        }
-      };
+      // Schedule next chunk immediately if queue has items
+      if (streamingQueue.length > 0) {
+        playNextStreamingChunk();
+      } else {
+        source.onended = () => {
+          if (streamingQueue.length > 0) {
+            playNextStreamingChunk();
+          }
+        };
+      }
     }
 
     function finishStreaming() {
       console.log('[stream] Finish signal received', streamingStats);
+
+      // If not started yet, start now with whatever we have
+      if (!isStreamingPlaying && streamingQueue.length > 0) {
+        startStreamingPlayback();
+      }
 
       // Wait for queue to drain, then stop
       const checkDone = () => {
         const now = audioContext ? audioContext.currentTime : 0;
         const queueEmpty = streamingQueue.length === 0;
         const playbackDone = now >= nextChunkTime - 0.05;
-
-        console.log(`[stream] Check done: queue=${streamingQueue.length}, now=${now.toFixed(3)}, nextChunk=${nextChunkTime.toFixed(3)}, done=${queueEmpty && playbackDone}`);
 
         if (queueEmpty && playbackDone) {
           isStreamingPlaying = false;
