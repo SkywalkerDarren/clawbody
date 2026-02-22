@@ -396,7 +396,7 @@ export class HttpServer {
     });
 
     // GET /api/screen (Vision 截图)
-    this.app.get('/api/screen', async (_req: Request, res: Response) => {
+    this.app.get('/api/screen', async (req: Request, res: Response) => {
       const vision = this.registry.get('vision');
       if (!vision) {
         send(res, 503, { error: 'Vision capability not available' });
@@ -404,11 +404,29 @@ export class HttpServer {
       }
 
       try {
-        const result = await vision.execute('screenshot', {});
+        const activeWindow = req.query['activeWindow'] === 'true';
+        const result = await vision.execute('screenshot', { activeWindow });
         send(res, 200, result as object);
       } catch (err) {
         logger.error(MOD, 'screenshot failed', err);
         send(res, 500, { error: 'Screenshot failed' });
+      }
+    });
+
+    // GET /api/desktop (桌面和窗口信息)
+    this.app.get('/api/desktop', async (_req: Request, res: Response) => {
+      const vision = this.registry.get('vision');
+      if (!vision) {
+        send(res, 503, { error: 'Vision capability not available' });
+        return;
+      }
+
+      try {
+        const result = await vision.execute('getDesktopInfo', {});
+        send(res, 200, result as object);
+      } catch (err) {
+        logger.error(MOD, 'getDesktopInfo failed', err);
+        send(res, 500, { error: 'Get desktop info failed' });
       }
     });
 
