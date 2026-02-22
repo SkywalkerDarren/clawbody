@@ -76,7 +76,7 @@ export class QwenTTSProvider implements ITTSProvider {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: options.text,
-          speaker: options.voice ?? 'Vivian',
+          voice: options.voice ?? 'Vivian',
           language: 'Auto',
           instruct: null,
         }),
