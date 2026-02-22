@@ -210,36 +210,24 @@
 
       const coreModel = model.internalModel.coreModel;
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      let smoothedValue = 0;
 
       lipSyncInterval = setInterval(() => {
-        analyser.getByteFrequencyData(dataArray);
+        analyser.getByteTimeDomainData(dataArray);
 
-        // Calculate RMS of voice frequencies (85-255 Hz for fundamental, up to 3000 Hz for harmonics)
-        const sampleRate = audioContext.sampleRate;
-        const binSize = sampleRate / analyser.fftSize;
-        const startBin = Math.floor(85 / binSize);
-        const endBin = Math.min(Math.floor(3000 / binSize), dataArray.length);
-
-        let sumSquares = 0;
-        for (let i = startBin; i < endBin; i++) {
-          sumSquares += dataArray[i] * dataArray[i];
+        // Calculate amplitude from time domain data
+        let max = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          const v = Math.abs(dataArray[i] - 128);
+          if (v > max) max = v;
         }
-        const rms = Math.sqrt(sumSquares / (endBin - startBin));
 
-        // Normalize: rms typically 0-255, voice usually 30-150
-        const normalized = Math.max(0, Math.min(1, (rms - 30) / 120));
-
-        // Smooth the value to avoid jerky movement
-        smoothedValue = smoothedValue * 0.6 + normalized * 0.4;
-
-        // Apply curve for more natural movement
-        const mouthOpen = Math.pow(smoothedValue, 0.8);
+        // Normalize to 0-1 (max amplitude is 128)
+        const mouthOpen = Math.min(1, max / 80);
 
         try {
           coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', mouthOpen);
         } catch (e) {}
-      }, 1000 / 60); // 60 FPS for smoother animation
+      }, 1000 / 30);
     }
 
     function stopLipSync() {
