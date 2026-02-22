@@ -167,22 +167,29 @@ export class HttpServer {
           await live2d.execute('motion', { group: motionGroup, index: 0 });
         }
 
-        // 3. 合成语音 (使用配置的声音)
-        let audioResult = null;
+        // 3. 合成语音并播放
+        let audioResult: { audio?: Buffer; duration?: number } | null = null;
         if (tts && this.persona) {
           const voiceConfig = this.persona.voice;
-          audioResult = await tts.execute('synthesize', {
+          audioResult = (await tts.execute('synthesize', {
             text,
             voice: voiceConfig.id,
             provider: voiceConfig.provider,
-          });
+          })) as { audio?: Buffer; duration?: number };
+
+          // 4. 发送音频到前端播放
+          if (audioResult?.audio) {
+            const audioBase64 = audioResult.audio.toString('base64');
+            this.broadcastWS({ type: 'audio', data: { audio: audioBase64, format: 'wav' } });
+            this.broadcastSSE({ audio: audioBase64, format: 'wav' }, 'audio');
+          }
         }
 
         send(res, 200, {
           ok: true,
           text,
           emotion: emotion ?? 'default',
-          audio: audioResult ? { duration: (audioResult as { duration?: number }).duration } : null,
+          audio: audioResult ? { duration: audioResult.duration } : null,
         });
       } catch (err) {
         logger.error(MOD, 'speak failed', err);

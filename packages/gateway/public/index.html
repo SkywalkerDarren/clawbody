@@ -139,10 +139,44 @@
       es.addEventListener('speak', () => {
         if (model) model.motion('tap_body', 0);
       });
+      es.addEventListener('audio', (e) => {
+        const { audio, format } = JSON.parse(e.data);
+        if (audio) {
+          playAudio(audio, format);
+          setStatus('playing audio...');
+        }
+      });
       es.onerror = () => {
         setTimeout(connectSSE, 3000);
         es.close();
       };
+    }
+
+    // Audio playback
+    let audioContext = null;
+    function playAudio(base64, format) {
+      try {
+        if (!audioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        audioContext.decodeAudioData(bytes.buffer, (buffer) => {
+          const source = audioContext.createBufferSource();
+          source.buffer = buffer;
+          source.connect(audioContext.destination);
+          source.start(0);
+          source.onended = () => setStatus('✓ Ready');
+        }, (err) => {
+          console.error('Audio decode error:', err);
+          setStatus('audio error');
+        });
+      } catch (err) {
+        console.error('Audio playback error:', err);
+      }
     }
 
     loadModel();
