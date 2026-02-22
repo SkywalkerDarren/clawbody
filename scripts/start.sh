@@ -137,16 +137,17 @@ start_services() {
     # 创建 tmux session (detached)
     tmux new-session -d -s "$SESSION_NAME" -x 200 -y 50
 
+    # 重命名第一个窗口
+    tmux rename-window -t "$SESSION_NAME" "main"
+
     # 分割窗口: 左右分割
-    tmux split-window -h -t "$SESSION_NAME"
+    tmux split-window -h -t "$SESSION_NAME:main"
 
-    # 左边上下分割
-    tmux select-pane -t "$SESSION_NAME:0.0"
-    tmux split-window -v -t "$SESSION_NAME"
+    # 左边上下分割 (pane 0)
+    tmux split-window -v -t "$SESSION_NAME:main.0"
 
-    # 右边上下分割
-    tmux select-pane -t "$SESSION_NAME:0.2"
-    tmux split-window -v -t "$SESSION_NAME"
+    # 右边上下分割 (pane 2, 因为左边分割后右边变成 pane 2)
+    tmux split-window -v -t "$SESSION_NAME:main.2"
 
     # 布局:
     # 0: 左上 (Gateway)
@@ -155,26 +156,16 @@ start_services() {
     # 3: 右下 (Live2D - 预留)
 
     # Pane 0: Gateway (左上)
-    tmux select-pane -t "$SESSION_NAME:0.0"
-    tmux send-keys -t "$SESSION_NAME:0.0" "cd '$PROJECT_ROOT' && pnpm --filter @clawbody/gateway dev" C-m
+    tmux send-keys -t "$SESSION_NAME:main.0" "cd '$PROJECT_ROOT' && pnpm --filter @clawbody/gateway dev" C-m
 
     # Pane 1: TTS (左下)
-    tmux select-pane -t "$SESSION_NAME:0.1"
-    tmux send-keys -t "$SESSION_NAME:0.1" "cd '$PROJECT_ROOT/services/qwen3-tts' && ./start.sh" C-m
+    tmux send-keys -t "$SESSION_NAME:main.1" "cd '$PROJECT_ROOT/services/qwen3-tts' && ./start.sh" C-m
 
     # Pane 2: Debug (右上) - 预留，显示提示
-    tmux select-pane -t "$SESSION_NAME:0.2"
-    tmux send-keys -t "$SESSION_NAME:0.2" "cd '$PROJECT_ROOT' && echo '=== Debug Pane ===' && echo 'Ready for debugging commands'" C-m
+    tmux send-keys -t "$SESSION_NAME:main.2" "cd '$PROJECT_ROOT' && echo '=== Debug Pane ===' && echo 'Ready for debugging commands'" C-m
 
     # Pane 3: Live2D (右下) - 预留
-    tmux select-pane -t "$SESSION_NAME:0.3"
-    tmux send-keys -t "$SESSION_NAME:0.3" "cd '$PROJECT_ROOT' && echo '=== Live2D Pane ===' && echo 'Live2D runs in browser at http://localhost:4000'" C-m
-
-    # 设置 pane 标题
-    tmux select-pane -t "$SESSION_NAME:0.0" -T "Gateway"
-    tmux select-pane -t "$SESSION_NAME:0.1" -T "TTS"
-    tmux select-pane -t "$SESSION_NAME:0.2" -T "Debug"
-    tmux select-pane -t "$SESSION_NAME:0.3" -T "Live2D"
+    tmux send-keys -t "$SESSION_NAME:main.3" "cd '$PROJECT_ROOT' && echo '=== Live2D Pane ===' && echo 'Live2D runs in browser at http://localhost:4000'" C-m
 
     success "服务已在后台启动"
     echo ""
