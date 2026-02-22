@@ -275,14 +275,16 @@ export class HttpServer {
 
           res.write(`data: ${JSON.stringify(eventData)}\n\n`);
 
-          // Also broadcast to WS clients
+          // Also broadcast to WS and SSE clients
           this.broadcastWS({ type: 'audio_chunk', data: eventData });
+          this.broadcastSSE(eventData, 'audio_chunk');
         }
 
         // Send done event
         const totalMs = Date.now() - startTime;
         const doneData = { done: true, chunks: chunkCount, total_ms: totalMs };
         res.write(`data: ${JSON.stringify(doneData)}\n\n`);
+        this.broadcastSSE(doneData, 'audio_chunk');
         logger.info(MOD, `Streaming complete: ${chunkCount} chunks in ${totalMs}ms`);
 
         res.end();
