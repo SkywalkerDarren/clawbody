@@ -162,7 +162,7 @@ start_services() {
     tmux send-keys -t "$SESSION_NAME:1.1" "cd '$PROJECT_ROOT' && pnpm --filter @clawbody/gateway dev" C-m
     tmux send-keys -t "$SESSION_NAME:1.2" "cd '$PROJECT_ROOT/services/qwen3-tts' && ./start.sh" C-m
     tmux send-keys -t "$SESSION_NAME:1.3" "echo '=== Debug Pane ===' && cd '$PROJECT_ROOT'" C-m
-    tmux send-keys -t "$SESSION_NAME:1.4" "echo '=== Live2D: http://localhost:4000 ===' && cd '$PROJECT_ROOT'" C-m
+    tmux send-keys -t "$SESSION_NAME:1.4" "cd '$PROJECT_ROOT' && pnpm --filter @clawbody/desktop start" C-m
 
     success "服务已在后台启动"
     echo ""
