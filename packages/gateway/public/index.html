@@ -210,28 +210,36 @@
 
       const coreModel = model.internalModel.coreModel;
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let smoothedValue = 0;
 
       lipSyncInterval = setInterval(() => {
         analyser.getByteFrequencyData(dataArray);
 
-        // Calculate average volume (focus on voice frequencies 100-1000Hz)
-        let sum = 0;
-        const startBin = Math.floor(100 / (audioContext.sampleRate / analyser.fftSize));
-        const endBin = Math.floor(1000 / (audioContext.sampleRate / analyser.fftSize));
-        for (let i = startBin; i < endBin && i < dataArray.length; i++) {
-          sum += dataArray[i];
+        // Calculate RMS of voice frequencies (85-255 Hz for fundamental, up to 3000 Hz for harmonics)
+        const sampleRate = audioContext.sampleRate;
+        const binSize = sampleRate / analyser.fftSize;
+        const startBin = Math.floor(85 / binSize);
+        const endBin = Math.min(Math.floor(3000 / binSize), dataArray.length);
+
+        let sumSquares = 0;
+        for (let i = startBin; i < endBin; i++) {
+          sumSquares += dataArray[i] * dataArray[i];
         }
-        const avg = sum / (endBin - startBin);
+        const rms = Math.sqrt(sumSquares / (endBin - startBin));
 
-        // Normalize to 0-1 range with threshold
-        const threshold = 20;
-        const mouthOpen = avg > threshold ? Math.min(1, (avg - threshold) / 100) : 0;
+        // Normalize: rms typically 0-255, voice usually 30-150
+        const normalized = Math.max(0, Math.min(1, (rms - 30) / 120));
 
-        // Set mouth parameter using Cubism 2 API
+        // Smooth the value to avoid jerky movement
+        smoothedValue = smoothedValue * 0.6 + normalized * 0.4;
+
+        // Apply curve for more natural movement
+        const mouthOpen = Math.pow(smoothedValue, 0.8);
+
         try {
           coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', mouthOpen);
         } catch (e) {}
-      }, 1000 / 30); // 30 FPS
+      }, 1000 / 60); // 60 FPS for smoother animation
     }
 
     function stopLipSync() {
