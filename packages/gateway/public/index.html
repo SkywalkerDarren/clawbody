@@ -148,14 +148,175 @@
           speakWithLipSync(audio, format);
         }
       });
+      es.addEventListener('audio_chunk', (e) => {
+        const data = JSON.parse(e.data);
+        if (data.audio) {
+          handleStreamingChunk(data);
+        } else if (data.done) {
+          finishStreaming();
+        }
+      });
       es.onerror = () => {
         setTimeout(connectSSE, 3000);
         es.close();
       };
     }
 
-    // Audio playback with lip sync
+    // Streaming audio playback
     let audioContext = null;
+    let streamingQueue = [];
+    let isStreamingPlaying = false;
+    let streamingAnalyser = null;
+    let streamingLipSyncInterval = null;
+    const SAMPLE_RATE = 24000;  // Qwen3-TTS output sample rate
+
+    function handleStreamingChunk(data) {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+      }
+
+      // Decode base64 PCM float32 to Float32Array
+      const binary = atob(data.audio);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const float32 = new Float32Array(bytes.buffer);
+
+      // Create AudioBuffer
+      const audioBuffer = audioContext.createBuffer(1, float32.length, SAMPLE_RATE);
+      audioBuffer.getChannelData(0).set(float32);
+
+      streamingQueue.push(audioBuffer);
+
+      if (data.chunk === 1) {
+        setStatus(`streaming... (${data.first_chunk_ms}ms)`);
+        startStreamingPlayback();
+      }
+    }
+
+    function startStreamingPlayback() {
+      if (isStreamingPlaying) return;
+      isStreamingPlaying = true;
+
+      // Create analyser for lip sync
+      streamingAnalyser = audioContext.createAnalyser();
+      streamingAnalyser.fftSize = 256;
+      streamingAnalyser.connect(audioContext.destination);
+
+      // Start lip sync
+      startStreamingLipSync();
+
+      playNextStreamingChunk();
+    }
+
+    let nextChunkTime = 0;
+
+    function playNextStreamingChunk() {
+      if (streamingQueue.length === 0) {
+        // Check again shortly in case more chunks arrive
+        setTimeout(() => {
+          if (streamingQueue.length > 0) {
+            playNextStreamingChunk();
+          }
+        }, 50);
+        return;
+      }
+
+      const buffer = streamingQueue.shift();
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(streamingAnalyser);
+
+      // Schedule playback
+      const now = audioContext.currentTime;
+      if (nextChunkTime < now) {
+        nextChunkTime = now;
+      }
+      source.start(nextChunkTime);
+      nextChunkTime += buffer.duration;
+
+      source.onended = () => {
+        if (streamingQueue.length > 0 || isStreamingPlaying) {
+          playNextStreamingChunk();
+        }
+      };
+    }
+
+    function finishStreaming() {
+      // Wait for queue to drain, then stop
+      const checkDone = () => {
+        if (streamingQueue.length === 0 && audioContext.currentTime >= nextChunkTime - 0.1) {
+          isStreamingPlaying = false;
+          stopStreamingLipSync();
+          setStatus('✓ Ready');
+        } else {
+          setTimeout(checkDone, 100);
+        }
+      };
+      checkDone();
+    }
+
+    function startStreamingLipSync() {
+      if (!model || !streamingAnalyser) return;
+
+      const coreModel = model.internalModel.coreModel;
+      const dataArray = new Uint8Array(streamingAnalyser.frequencyBinCount);
+
+      const ATTACK = 50;
+      const RELEASE = 30;
+      const CAP = 0.8;
+      const SILENCE_THRESHOLD = 10;
+      const IDLE_MS = 160;
+
+      let smoothedValue = 0;
+      let lastActiveAt = performance.now();
+      let lastFrameTime = performance.now();
+
+      streamingLipSyncInterval = setInterval(() => {
+        const now = performance.now();
+        const delta = (now - lastFrameTime) / 1000;
+        lastFrameTime = now;
+
+        streamingAnalyser.getByteTimeDomainData(dataArray);
+
+        let max = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          const v = Math.abs(dataArray[i] - 128);
+          if (v > max) max = v;
+        }
+
+        const amplitude = Math.min(1, max / 60);
+        let silent = amplitude < SILENCE_THRESHOLD / 128;
+        if (!silent) lastActiveAt = now;
+        if (now - lastActiveAt > IDLE_MS) silent = true;
+
+        const target = silent ? 0 : Math.min(CAP, amplitude);
+        const rate = 1 - Math.exp(-(target > smoothedValue ? ATTACK : RELEASE) * delta);
+        smoothedValue = smoothedValue + (target - smoothedValue) * rate;
+
+        const mouthOpen = smoothedValue < 0.02 ? 0 : smoothedValue;
+
+        try {
+          coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', mouthOpen);
+        } catch (e) {}
+      }, 1000 / 60);
+    }
+
+    function stopStreamingLipSync() {
+      if (streamingLipSyncInterval) {
+        clearInterval(streamingLipSyncInterval);
+        streamingLipSyncInterval = null;
+      }
+      if (model) {
+        try {
+          model.internalModel.coreModel.setParamFloat('PARAM_MOUTH_OPEN_Y', 0);
+        } catch (e) {}
+      }
+      nextChunkTime = 0;
+    }
+
+    // Non-streaming audio playback with lip sync (for /api/speak)
     let analyser = null;
     let lipSyncInterval = null;
 
