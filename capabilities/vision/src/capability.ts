@@ -254,31 +254,58 @@ export class VisionCapability implements ICapability<VisionConfig> {
     let currentDesktop = 1;
     let cursor: { x: number; y: number } | undefined;
 
-    // Try KWin DBus (KDE Plasma)
+    // Try xdotool for active window (works on X11 and KDE Wayland via XWayland)
     try {
-      const { stdout } = await execFileAsync('qdbus', [
-        'org.kde.KWin',
-        '/KWin',
-        'queryWindowInfo',
-      ]);
+      const { stdout: windowId } = await execFileAsync('xdotool', ['getactivewindow']);
+      const { stdout: windowName } = await execFileAsync('xdotool', ['getwindowname', windowId.trim()]);
+      const { stdout: windowGeom } = await execFileAsync('xdotool', ['getwindowgeometry', windowId.trim()]);
 
-      const info = this.parseKWinWindowInfo(stdout);
-      if (info) {
-        activeWindow = info;
+      // Parse geometry: "Window 12345678\n  Position: 0,0 (screen: 0)\n  Geometry: 1920x1080"
+      const posMatch = windowGeom.match(/Position:\s*(\d+),(\d+)/);
+      const geomMatch = windowGeom.match(/Geometry:\s*(\d+)x(\d+)/);
+
+      activeWindow = {
+        caption: windowName.trim(),
+        resourceClass: '',
+        resourceName: '',
+        desktopFile: '',
+        width: geomMatch?.[1] ? parseInt(geomMatch[1], 10) : 0,
+        height: geomMatch?.[2] ? parseInt(geomMatch[2], 10) : 0,
+        x: posMatch?.[1] ? parseInt(posMatch[1], 10) : 0,
+        y: posMatch?.[2] ? parseInt(posMatch[2], 10) : 0,
+        minimized: false,
+        fullscreen: false,
+        uuid: windowId.trim(),
+      };
+
+      // Try to get window class
+      try {
+        const { stdout: classOut } = await execFileAsync('xprop', ['-id', windowId.trim(), 'WM_CLASS']);
+        const classMatch = classOut.match(/WM_CLASS.*=\s*"([^"]*)",\s*"([^"]*)"/);
+        if (classMatch) {
+          activeWindow.resourceName = classMatch[1] ?? '';
+          activeWindow.resourceClass = classMatch[2] ?? '';
+        }
+      } catch {
+        // xprop failed
       }
+    } catch (err) {
+      logger.debug('vision', 'xdotool active window not available', err);
+    }
 
-      // Get current desktop
+    // Get current desktop via KWin DBus (non-interactive)
+    try {
       const { stdout: desktopOut } = await execFileAsync('qdbus', [
         'org.kde.KWin',
         '/KWin',
         'currentDesktop',
       ]);
       currentDesktop = parseInt(desktopOut.trim(), 10) || 1;
-    } catch (err) {
-      logger.debug('vision', 'KWin DBus not available', err);
+    } catch {
+      // KWin not available
     }
 
-    // Get cursor position via KWin scripting
+    // Get cursor position
     cursor = await this.getCursorPosition();
 
     return {
