@@ -109,6 +109,20 @@
           if (defs) Object.keys(defs).forEach(g => { motions[g] = defs[g].length; });
         } catch(e) { console.warn('motion:', e); }
 
+        // Debug: List all model parameters
+        try {
+          const coreModel = model.internalModel.coreModel;
+          const paramCount = coreModel.getParamCount();
+          console.log('=== Model Parameters ===');
+          for (let i = 0; i < paramCount; i++) {
+            const name = coreModel.getParamId(i);
+            const value = coreModel.getParamFloat(i);
+            const min = coreModel.getParamMin(i);
+            const max = coreModel.getParamMax(i);
+            console.log(`  [${i}] ${name}: ${value} (${min} ~ ${max})`);
+          }
+        } catch(e) { console.warn('params:', e); }
+
         fetch('/api/model-ready', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
