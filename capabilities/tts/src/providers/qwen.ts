@@ -15,6 +15,28 @@ const QWEN_VOICES: Voice[] = [
   { id: 'Aiden', name: 'Aiden (美式男声)', language: 'en', gender: 'male' },
 ];
 
+interface StreamChunkEvent {
+  audio: string; // base64 PCM float32
+  sr: number;
+  chunk: number;
+  samples: number;
+  first_chunk_ms?: number;
+}
+
+interface StreamDoneEvent {
+  done: true;
+  chunks: number;
+  total_samples: number;
+  duration_ms: number;
+  total_ms: number;
+}
+
+interface StreamErrorEvent {
+  error: string;
+}
+
+type StreamEvent = StreamChunkEvent | StreamDoneEvent | StreamErrorEvent;
+
 /**
  * Qwen3-TTS 提供商
  */
@@ -102,6 +124,85 @@ export class QwenTTSProvider implements ITTSProvider {
         sampleRate: json.sample_rate,
         duration: json.duration_ms / 1000,
       };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * 流式合成语音
+   * 返回 PCM float32 音频 chunks
+   */
+  async *synthesizeStream(options: SynthesisOptions): AsyncIterable<Buffer> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const res = await fetch(`${this.baseUrl}/synthesize/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: options.text,
+          voice: options.voice ?? '1',
+          language: 'Auto',
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        throw new Error(`Qwen TTS stream error: ${res.status} ${res.statusText}`);
+      }
+
+      if (!res.body) {
+        throw new Error('No response body');
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.slice(6);
+            try {
+              const event = JSON.parse(jsonStr) as StreamEvent;
+
+              if ('error' in event) {
+                throw new Error(event.error);
+              }
+
+              if ('done' in event && event.done) {
+                // Stream complete
+                return;
+              }
+
+              if ('audio' in event && event.audio) {
+                // Decode base64 PCM and yield as Buffer
+                const pcmBuffer = Buffer.from(event.audio, 'base64');
+                yield pcmBuffer;
+              }
+            } catch (e) {
+              if (e instanceof SyntaxError) {
+                // Ignore JSON parse errors for incomplete data
+                continue;
+              }
+              throw e;
+            }
+          }
+        }
+      }
     } finally {
       clearTimeout(timeoutId);
     }

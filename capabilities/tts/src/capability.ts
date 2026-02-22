@@ -182,6 +182,26 @@ export class TTSCapability implements ICapability<TTSConfig> {
         streaming: false,
       },
       {
+        name: 'synthesizeStream',
+        description: '流式合成语音，返回 PCM 音频流',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            text: { type: 'string', description: '要合成的文本' },
+            voice: { type: 'string', description: '声音名称' },
+            provider: { type: 'string', description: 'TTS 提供商' },
+          },
+          required: ['text'],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            chunk: { type: 'string', description: 'Base64 编码的 PCM 音频块' },
+          },
+        },
+        streaming: true,
+      },
+      {
         name: 'listVoices',
         description: '列出可用的声音',
         inputSchema: {
@@ -221,6 +241,20 @@ export class TTSCapability implements ICapability<TTSConfig> {
         return this.listVoices(input as ListVoicesInput) as Promise<TOutput>;
       default:
         throw new Error(`Unknown operation: ${operation}`);
+    }
+  }
+
+  async *executeStream<TInput>(
+    operation: string,
+    input: TInput,
+    _context?: ExecutionContext
+  ): AsyncIterable<Buffer> {
+    switch (operation) {
+      case 'synthesizeStream':
+        yield* this.synthesizeStream(input as SynthesizeInput);
+        break;
+      default:
+        throw new Error(`Unknown streaming operation: ${operation}`);
     }
   }
 
@@ -294,5 +328,18 @@ export class TTSCapability implements ICapability<TTSConfig> {
       allVoices.push(...voices);
     }
     return allVoices;
+  }
+
+  private async *synthesizeStream(input: SynthesizeInput): AsyncIterable<Buffer> {
+    const provider = this.getProvider(input.provider);
+
+    if (!provider.synthesizeStream) {
+      throw new Error(`Provider ${provider.id} does not support streaming`);
+    }
+
+    yield* provider.synthesizeStream({
+      text: input.text,
+      voice: input.voice,
+    });
   }
 }
