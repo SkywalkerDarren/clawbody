@@ -214,6 +214,85 @@ export class HttpServer {
       }
     });
 
+    // POST /api/speak/stream - 流式说话接口
+    this.app.post('/api/speak/stream', async (req: Request, res: Response) => {
+      const { text, emotion } = req.body as { text: string; emotion?: string };
+
+      if (!text) {
+        send(res, 400, { error: 'text is required' });
+        return;
+      }
+
+      const live2d = this.registry.get('live2d');
+      const tts = this.registry.get('tts');
+
+      if (!tts || !('executeStream' in tts)) {
+        send(res, 503, { error: 'Streaming TTS not available' });
+        return;
+      }
+
+      // Set SSE headers
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders();
+
+      try {
+        // 1. 设置表情
+        if (live2d && this.persona) {
+          const exprName = emotion
+            ? this.persona.expressions[emotion] ?? this.persona.expressions['default']
+            : this.persona.expressions['default'];
+          if (exprName) {
+            await live2d.execute('expression', { name: exprName });
+          }
+        }
+
+        // 2. 流式合成语音
+        const voiceConfig = this.persona?.voice;
+        const streamCapability = tts as { executeStream: (op: string, input: unknown) => AsyncIterable<Buffer> };
+
+        let chunkCount = 0;
+        const startTime = Date.now();
+
+        for await (const chunk of streamCapability.executeStream('synthesizeStream', {
+          text,
+          voice: voiceConfig?.id ?? '1',
+          provider: voiceConfig?.provider ?? 'qwen',
+        })) {
+          chunkCount++;
+
+          // Send chunk to SSE response
+          const chunkB64 = chunk.toString('base64');
+          const eventData = { audio: chunkB64, chunk: chunkCount };
+
+          if (chunkCount === 1) {
+            const firstChunkMs = Date.now() - startTime;
+            logger.info(MOD, `First chunk latency: ${firstChunkMs}ms`);
+            Object.assign(eventData, { first_chunk_ms: firstChunkMs });
+          }
+
+          res.write(`data: ${JSON.stringify(eventData)}\n\n`);
+
+          // Also broadcast to WS clients
+          this.broadcastWS({ type: 'audio_chunk', data: eventData });
+        }
+
+        // Send done event
+        const totalMs = Date.now() - startTime;
+        const doneData = { done: true, chunks: chunkCount, total_ms: totalMs };
+        res.write(`data: ${JSON.stringify(doneData)}\n\n`);
+        logger.info(MOD, `Streaming complete: ${chunkCount} chunks in ${totalMs}ms`);
+
+        res.end();
+      } catch (err) {
+        logger.error(MOD, 'speak/stream failed', err);
+        res.write(`data: ${JSON.stringify({ error: 'Stream failed' })}\n\n`);
+        res.end();
+      }
+    });
+
     // POST /api/emote - 设置表情
     this.app.post('/api/emote', async (req: Request, res: Response) => {
       const { emotion } = req.body as { emotion: string };
