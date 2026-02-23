@@ -126,9 +126,17 @@ async def lifespan(app: FastAPI):
         # 模型预热: 使用 1 秒静音音频
         logger.info("Warming up model with 1s silent audio...")
         warmup_start = datetime.now()
-        silent_audio = np.zeros(16000, dtype=np.float32)  # 1 秒 16kHz 静音
         try:
-            _ = asr_model.transcribe(silent_audio)
+            import tempfile
+            silent_audio = np.zeros(16000, dtype=np.float32)  # 1 秒 16kHz 静音
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                sf.write(tmp.name, silent_audio, 16000, format="WAV")
+                tmp_path = tmp.name
+            try:
+                _ = asr_model.transcribe(tmp_path)
+            finally:
+                import os
+                os.unlink(tmp_path)
             warmup_time = (datetime.now() - warmup_start).total_seconds()
             logger.info(f"Model warmup completed in {warmup_time:.2f}s")
         except Exception as e:

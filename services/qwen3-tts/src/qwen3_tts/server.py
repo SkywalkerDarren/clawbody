@@ -160,7 +160,7 @@ async def lifespan(app: FastAPI):
                 prompt_data = voice_prompts[warmup_voice]
                 _ = model.generate_voice_clone(
                     text=warmup_text,
-                    prompt=prompt_data["prompt"],
+                    voice_clone_prompt=prompt_data["prompt"],
                 )
                 warmup_time = time.time() - warmup_start
                 logger.info(f"Model warmup completed in {warmup_time:.2f}s")
