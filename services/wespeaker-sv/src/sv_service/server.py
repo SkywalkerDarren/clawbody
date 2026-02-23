@@ -161,7 +161,7 @@ async def enroll(req: EnrollRequest):
         audio_float32 = audio_int16.astype(np.float32) / 32768.0
 
         # Extract embedding
-        embedding = verifier.extract_embedding(audio_float32, sample_rate=16000)
+        embedding = verifier.extract_embedding(audio_float32)
         if embedding is None:
             return EnrollResponse(
                 success=False,
@@ -208,7 +208,7 @@ async def verify(req: VerifyRequest):
         audio_float32 = audio_int16.astype(np.float32) / 32768.0
 
         # Extract embedding
-        embedding = verifier.extract_embedding(audio_float32, sample_rate=16000)
+        embedding = verifier.extract_embedding(audio_float32)
         if embedding is None:
             return VerifyResponse(
                 verified=False,

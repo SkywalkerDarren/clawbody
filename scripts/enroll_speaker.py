@@ -95,7 +95,7 @@ def list_speakers():
     try:
         r = httpx.get(f"{SV_URL}/speakers", timeout=5)
         r.raise_for_status()
-        speakers = r.json().get("speakers", [])
+        speakers = r.json()  # 直接返回列表
         if speakers:
             print("\n📋 已注册的说话人:")
             for s in speakers:
