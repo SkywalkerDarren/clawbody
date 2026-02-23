@@ -647,6 +647,102 @@ export class HttpServer {
       }
     });
 
+    // === VAD (Voice Activity Detection) 路由 ===
+
+    // POST /api/vad/process - 处理音频块
+    this.app.post('/api/vad/process', async (req: Request, res: Response) => {
+      const { audio, provider } = req.body as { audio: string; provider?: string };
+
+      if (!audio) {
+        send(res, 400, { error: 'audio is required (base64 encoded PCM)' });
+        return;
+      }
+
+      const vad = this.registry.get('vad');
+      if (!vad) {
+        send(res, 503, { error: 'VAD capability not available' });
+        return;
+      }
+
+      try {
+        const result = await vad.execute('processChunk', { audio, provider });
+        send(res, 200, result as object);
+      } catch (err) {
+        logger.error(MOD, 'vad/process failed', err);
+        send(res, 500, { error: 'VAD processing failed' });
+      }
+    });
+
+    // POST /api/vad/reset - 重置 VAD 状态
+    this.app.post('/api/vad/reset', async (req: Request, res: Response) => {
+      const { provider } = req.body as { provider?: string };
+
+      const vad = this.registry.get('vad');
+      if (!vad) {
+        send(res, 503, { error: 'VAD capability not available' });
+        return;
+      }
+
+      try {
+        const result = await vad.execute('reset', { provider });
+        send(res, 200, result as object);
+      } catch (err) {
+        logger.error(MOD, 'vad/reset failed', err);
+        send(res, 500, { error: 'VAD reset failed' });
+      }
+    });
+
+    // GET /api/vad/config - 获取 VAD 配置
+    this.app.get('/api/vad/config', async (req: Request, res: Response) => {
+      const { provider } = req.query as { provider?: string };
+
+      const vad = this.registry.get('vad');
+      if (!vad) {
+        send(res, 503, { error: 'VAD capability not available' });
+        return;
+      }
+
+      try {
+        const config = await vad.execute('getConfig', { provider });
+        send(res, 200, config as object);
+      } catch (err) {
+        logger.error(MOD, 'vad/config get failed', err);
+        send(res, 500, { error: 'Failed to get VAD config' });
+      }
+    });
+
+    // POST /api/vad/config - 更新 VAD 配置
+    this.app.post('/api/vad/config', async (req: Request, res: Response) => {
+      const { provider, threshold, minSpeechDurationMs, minSilenceDurationMs, speechPadMs } =
+        req.body as {
+          provider?: string;
+          threshold?: number;
+          minSpeechDurationMs?: number;
+          minSilenceDurationMs?: number;
+          speechPadMs?: number;
+        };
+
+      const vad = this.registry.get('vad');
+      if (!vad) {
+        send(res, 503, { error: 'VAD capability not available' });
+        return;
+      }
+
+      try {
+        const result = await vad.execute('updateConfig', {
+          provider,
+          threshold,
+          minSpeechDurationMs,
+          minSilenceDurationMs,
+          speechPadMs,
+        });
+        send(res, 200, result as object);
+      } catch (err) {
+        logger.error(MOD, 'vad/config update failed', err);
+        send(res, 500, { error: 'Failed to update VAD config' });
+      }
+    });
+
     // GET /api/events (SSE)
     this.app.get('/api/events', (req: Request, res: Response) => {
       res.setHeader('Content-Type', 'text/event-stream');
@@ -689,6 +785,19 @@ export class HttpServer {
   }
 
   private handleCapabilityEvent(event: CapabilityEvent): void {
+    // VAD speech_end_with_audio → 自动触发 STT 转录
+    if (event.capabilityId === 'vad' && event.eventType === 'speech_end_with_audio') {
+      const data = event.data as {
+        audioBuffer?: string;
+        autoTriggerSTT?: boolean;
+      };
+      if (data.autoTriggerSTT && data.audioBuffer) {
+        this.handleVADSpeechEnd(data.audioBuffer).catch((err) => {
+          logger.error(MOD, 'VAD → STT failed', err);
+        });
+      }
+    }
+
     // STT 最终结果转发给 OpenClaw
     if (event.capabilityId === 'stt') {
       if (event.eventType === 'sessionEnded' && (event.data as { text?: string })?.text) {
@@ -711,6 +820,37 @@ export class HttpServer {
         eventType: event.eventType,
         data: event.data,
       });
+    }
+  }
+
+  private async handleVADSpeechEnd(audioBuffer: string): Promise<void> {
+    const stt = this.registry.get('stt');
+    if (!stt) {
+      logger.warn(MOD, 'VAD speech_end but STT not available');
+      return;
+    }
+
+    logger.info(MOD, 'VAD → STT: transcribing speech...');
+    const startTime = Date.now();
+
+    try {
+      const result = (await stt.execute('transcribe', {
+        audio: audioBuffer,
+        language: 'auto',
+      })) as { text: string; language: string; duration: number };
+
+      const elapsed = Date.now() - startTime;
+      const text = result.text?.trim();
+
+      if (text) {
+        logger.info(MOD, `VAD → STT complete (${elapsed}ms): "${text.slice(0, 50)}..."`);
+        // 转发给 OpenClaw
+        await this.forwardSTTToOpenClaw(text);
+      } else {
+        logger.info(MOD, `VAD → STT complete (${elapsed}ms): empty result`);
+      }
+    } catch (err) {
+      logger.error(MOD, 'VAD → STT transcribe failed', err);
     }
   }
 
