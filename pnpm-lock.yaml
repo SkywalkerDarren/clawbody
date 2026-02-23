@@ -65,6 +65,34 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.19.11)
 
+  capabilities/speaker-verification:
+    dependencies:
+      '@clawbody/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.11
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.0.0
+        version: 8.56.0(@typescript-eslint/parser@8.56.0(eslint@9.39.3)(typescript@5.9.3))(eslint@9.39.3)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: ^8.0.0
+        version: 8.56.0(eslint@9.39.3)(typescript@5.9.3)
+      '@vitest/coverage-v8':
+        specifier: ^2.1.0
+        version: 2.1.9(vitest@2.1.9(@types/node@22.19.11))
+      eslint:
+        specifier: ^9.0.0
+        version: 9.39.3
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.11)
+
   capabilities/stt:
     dependencies:
       '@clawbody/core':
@@ -216,6 +244,9 @@ importers:
       '@clawbody/proto-gen':
         specifier: workspace:*
         version: link:../proto-gen
+      '@clawbody/speaker-verification':
+        specifier: workspace:*
+        version: link:../../capabilities/speaker-verification
       '@clawbody/stt':
         specifier: workspace:*
         version: link:../../capabilities/stt

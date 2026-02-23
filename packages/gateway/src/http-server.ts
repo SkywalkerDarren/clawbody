@@ -743,6 +743,142 @@ export class HttpServer {
       }
     });
 
+    // === Speaker Verification (SV) 路由 ===
+
+    // POST /api/sv/enroll - 注册说话人
+    this.app.post('/api/sv/enroll', async (req: Request, res: Response) => {
+      const { speakerId, speakerName, audio, provider } = req.body as {
+        speakerId: string;
+        speakerName: string;
+        audio: string;
+        provider?: string;
+      };
+
+      if (!speakerId || !speakerName || !audio) {
+        send(res, 400, { error: 'speakerId, speakerName, and audio are required' });
+        return;
+      }
+
+      const sv = this.registry.get('speaker-verification');
+      if (!sv) {
+        send(res, 503, { error: 'Speaker Verification capability not available' });
+        return;
+      }
+
+      try {
+        const result = await sv.execute('enroll', { speakerId, speakerName, audio, provider });
+        send(res, 200, result as object);
+      } catch (err) {
+        logger.error(MOD, 'sv/enroll failed', err);
+        send(res, 500, { error: 'Enrollment failed' });
+      }
+    });
+
+    // POST /api/sv/verify - 验证说话人
+    this.app.post('/api/sv/verify', async (req: Request, res: Response) => {
+      const { audio, provider } = req.body as { audio: string; provider?: string };
+
+      if (!audio) {
+        send(res, 400, { error: 'audio is required (base64 encoded PCM)' });
+        return;
+      }
+
+      const sv = this.registry.get('speaker-verification');
+      if (!sv) {
+        send(res, 503, { error: 'Speaker Verification capability not available' });
+        return;
+      }
+
+      try {
+        const result = await sv.execute('verify', { audio, provider });
+        send(res, 200, result as object);
+      } catch (err) {
+        logger.error(MOD, 'sv/verify failed', err);
+        send(res, 500, { error: 'Verification failed' });
+      }
+    });
+
+    // GET /api/sv/speakers - 列出所有说话人
+    this.app.get('/api/sv/speakers', async (req: Request, res: Response) => {
+      const { provider } = req.query as { provider?: string };
+
+      const sv = this.registry.get('speaker-verification');
+      if (!sv) {
+        send(res, 503, { error: 'Speaker Verification capability not available' });
+        return;
+      }
+
+      try {
+        const result = await sv.execute('listSpeakers', { provider });
+        send(res, 200, result as object);
+      } catch (err) {
+        logger.error(MOD, 'sv/speakers list failed', err);
+        send(res, 500, { error: 'Failed to list speakers' });
+      }
+    });
+
+    // DELETE /api/sv/speakers/:speakerId - 删除说话人
+    this.app.delete('/api/sv/speakers/:speakerId', async (req: Request, res: Response) => {
+      const { speakerId } = req.params;
+      const { provider } = req.query as { provider?: string };
+
+      const sv = this.registry.get('speaker-verification');
+      if (!sv) {
+        send(res, 503, { error: 'Speaker Verification capability not available' });
+        return;
+      }
+
+      try {
+        const result = await sv.execute('deleteSpeaker', { speakerId, provider });
+        send(res, 200, result as object);
+      } catch (err) {
+        logger.error(MOD, 'sv/speakers delete failed', err);
+        send(res, 500, { error: 'Failed to delete speaker' });
+      }
+    });
+
+    // GET /api/sv/config - 获取 SV 配置
+    this.app.get('/api/sv/config', async (req: Request, res: Response) => {
+      const { provider } = req.query as { provider?: string };
+
+      const sv = this.registry.get('speaker-verification');
+      if (!sv) {
+        send(res, 503, { error: 'Speaker Verification capability not available' });
+        return;
+      }
+
+      try {
+        const config = await sv.execute('getConfig', { provider });
+        send(res, 200, config as object);
+      } catch (err) {
+        logger.error(MOD, 'sv/config get failed', err);
+        send(res, 500, { error: 'Failed to get SV config' });
+      }
+    });
+
+    // POST /api/sv/config - 更新 SV 配置
+    this.app.post('/api/sv/config', async (req: Request, res: Response) => {
+      const { provider, threshold, applyVAD } = req.body as {
+        provider?: string;
+        threshold?: number;
+        applyVAD?: boolean;
+      };
+
+      const sv = this.registry.get('speaker-verification');
+      if (!sv) {
+        send(res, 503, { error: 'Speaker Verification capability not available' });
+        return;
+      }
+
+      try {
+        const result = await sv.execute('updateConfig', { provider, threshold, applyVAD });
+        send(res, 200, result as object);
+      } catch (err) {
+        logger.error(MOD, 'sv/config update failed', err);
+        send(res, 500, { error: 'Failed to update SV config' });
+      }
+    });
+
     // GET /api/events (SSE)
     this.app.get('/api/events', (req: Request, res: Response) => {
       res.setHeader('Content-Type', 'text/event-stream');

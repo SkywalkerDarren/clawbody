@@ -51,6 +51,10 @@ export interface BodyConfig {
       enabled?: boolean;
       providers?: Record<string, { type: string; baseUrl?: string }>;
     };
+    'speaker-verification'?: {
+      enabled?: boolean;
+      providers?: Record<string, { type: string; baseUrl?: string }>;
+    };
     vision?: { enabled?: boolean; preferredTool?: string };
   };
   openclaw?: {
@@ -196,6 +200,16 @@ async function main(): Promise<void> {
     }
   }
 
+  if (config.capabilities?.['speaker-verification']?.enabled !== false) {
+    try {
+      const { createSpeakerVerificationCapability } = await import('@clawbody/speaker-verification');
+      const sv = createSpeakerVerificationCapability();
+      registry.register(sv);
+    } catch (err) {
+      logger.warn('main', 'Speaker Verification capability not available', err);
+    }
+  }
+
   // 初始化所有能力
   const defaultProvider = config.persona?.voice.provider ?? 'qwen';
   await registry.initializeAll({
@@ -216,6 +230,12 @@ async function main(): Promise<void> {
       defaultProvider: 'silero',
       providers: config.capabilities?.vad?.providers ?? {
         silero: { type: 'silero', baseUrl: 'http://localhost:8767' },
+      },
+    },
+    'speaker-verification': {
+      defaultProvider: 'wespeaker',
+      providers: config.capabilities?.['speaker-verification']?.providers ?? {
+        wespeaker: { type: 'wespeaker', baseUrl: 'http://localhost:8768' },
       },
     },
     vision: {

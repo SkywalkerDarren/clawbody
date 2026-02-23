@@ -19,6 +19,7 @@
     "@clawbody/core": "workspace:*",
     "@clawbody/live2d": "workspace:*",
     "@clawbody/proto-gen": "workspace:*",
+    "@clawbody/speaker-verification": "workspace:*",
     "@clawbody/stt": "workspace:*",
     "@clawbody/tts": "workspace:*",
     "@clawbody/vad": "workspace:*",

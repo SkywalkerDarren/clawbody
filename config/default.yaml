@@ -84,6 +84,14 @@ capabilities:
         type: "silero"
         baseUrl: "http://localhost:8767"
 
+  # Speaker Verification 说话人验证
+  speaker-verification:
+    enabled: true
+    providers:
+      wespeaker:
+        type: "wespeaker"
+        baseUrl: "http://localhost:8768"
+
   # Vision 屏幕截图
   vision:
     enabled: true
