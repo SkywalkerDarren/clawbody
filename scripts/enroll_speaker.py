@@ -33,7 +33,16 @@ def check_service():
     """检查 SV 服务是否运行"""
     try:
         r = httpx.get(f"{SV_URL}/health", timeout=2)
-        return r.status_code == 200 and r.json().get("status") == "ready"
+        if r.status_code == 200:
+            data = r.json()
+            status = data.get("status")
+            if status == "ready":
+                return True
+            elif status == "unavailable":
+                print(f"⚠️  SV 服务运行中但模型未加载")
+                print(f"   请检查模型是否已下载到 ~/.cache/wespeaker/")
+                return False
+        return False
     except Exception:
         return False
 

@@ -57,10 +57,16 @@ class SpeakerVerifier:
         cache_dir = Path.home() / ".cache" / "wespeaker"
         model_dir = cache_dir / model_name
 
-        if model_dir.exists():
+        if model_dir.exists() and (model_dir / "avg_model.pt").exists():
             return model_dir
 
-        # Try to download using wespeaker hub
+        # Model name to download URL mapping (for models not in Hub)
+        model_urls = {
+            "voxblink2_samresnet100_ft": "https://wenet.org.cn/downloads?models=wespeaker&version=voxblink2_samresnet100_ft.zip",
+            "voxblink2_samresnet100": "https://wenet.org.cn/downloads?models=wespeaker&version=voxblink2_samresnet100.zip",
+        }
+
+        # Try to download using wespeaker hub first
         try:
             from wespeaker.cli.hub import Hub  # type: ignore[import-not-found]
 
@@ -69,11 +75,56 @@ class SpeakerVerifier:
         except ImportError:
             pass
 
+        # Try direct download for known models
+        if model_name in model_urls:
+            logger.info(f"Downloading model {model_name}...")
+            self._download_model(model_urls[model_name], model_dir)
+            if model_dir.exists() and (model_dir / "avg_model.pt").exists():
+                return model_dir
+
         # Fallback: check if it's a direct path
         if Path(model_name).exists():
             return Path(model_name)
 
         raise FileNotFoundError(f"Model {model_name} not found. Please download it first.")
+
+    def _download_model(self, url: str, target_dir: Path) -> None:
+        """Download and extract model from URL."""
+        import io
+        import zipfile
+        import tarfile
+        import requests
+
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            logger.info(f"Downloading from {url}")
+            response = requests.get(url, stream=True, timeout=300)
+            response.raise_for_status()
+
+            content = response.content
+
+            # Try zip first
+            try:
+                with zipfile.ZipFile(io.BytesIO(content)) as zf:
+                    zf.extractall(target_dir)
+                    logger.info(f"Extracted zip to {target_dir}")
+                    return
+            except zipfile.BadZipFile:
+                pass
+
+            # Try tar.gz
+            try:
+                with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as tf:
+                    tf.extractall(target_dir)
+                    logger.info(f"Extracted tar.gz to {target_dir}")
+                    return
+            except tarfile.TarError:
+                pass
+
+            logger.error("Failed to extract model archive")
+        except Exception as e:
+            logger.error(f"Failed to download model: {e}")
 
     def _load_model(self) -> None:
         """Load WeSpeaker model."""

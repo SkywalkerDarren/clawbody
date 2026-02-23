@@ -10,7 +10,7 @@ export HOST=${HOST:-0.0.0.0}
 export PORT=${PORT:-8768}
 export SV_MODEL=${SV_MODEL:-voxblink2_samresnet100_ft}
 export SV_THRESHOLD=${SV_THRESHOLD:-0.6}
-export SV_DEVICE=${SV_DEVICE:-cpu}
+export SV_DEVICE=${SV_DEVICE:-cuda}
 export SV_APPLY_VAD=${SV_APPLY_VAD:-true}
 export SV_STORAGE_PATH=${SV_STORAGE_PATH:-./data/speakers.json}
 
