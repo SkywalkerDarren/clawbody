@@ -14,10 +14,9 @@ dependencies = [
     "torchaudio>=2.0.0",
     "numpy>=1.20.0",
     "pyyaml>=6.0",
-    "tqdm>=4.66.0",
     "silero-vad>=5.1",
     "requests>=2.28.0",
-    "wespeaker @ git+https://github.com/wenet-e2e/wespeaker.git",
+    "onnxruntime-gpu>=1.17.0",
 ]
 
 [project.optional-dependencies]
