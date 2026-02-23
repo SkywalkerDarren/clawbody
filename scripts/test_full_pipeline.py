@@ -140,7 +140,7 @@ def main():
 
                 if result and result.get('text'):
                     marker = '✅' if result.get('isFinal') else '🎤'
-                    print(f'\r{marker} {result[text]}', end='', flush=True)
+                    print(f'\r{marker} {result["text"]}', end='', flush=True)
             except queue.Empty:
                 continue
 
