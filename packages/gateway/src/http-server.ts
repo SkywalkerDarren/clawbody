@@ -73,30 +73,41 @@ export class HttpServer {
     // 请求/响应日志中间件
     this.app.use('/api', (req: Request, res: Response, next: NextFunction) => {
       const startTime = Date.now();
-      const { method, path } = req;
+      const { method, path: reqPath } = req;
+
+      // 跳过高频请求的日志 (VAD process)
+      const skipLog = reqPath === '/vad/process';
 
       // 记录请求 (排除大型 audio 数据)
-      const logBody = { ...req.body };
-      if (logBody.audio && typeof logBody.audio === 'string' && logBody.audio.length > 100) {
-        logBody.audio = `[base64 ${logBody.audio.length} chars]`;
+      if (!skipLog) {
+        const logBody = { ...req.body };
+        if (logBody.audio && typeof logBody.audio === 'string' && logBody.audio.length > 100) {
+          logBody.audio = `[base64 ${logBody.audio.length} chars]`;
+        }
+        logger.debug(MOD, `→ ${method} ${reqPath}`, Object.keys(logBody).length > 0 ? logBody : undefined);
       }
-      logger.debug(MOD, `→ ${method} ${path}`, Object.keys(logBody).length > 0 ? logBody : undefined);
 
       // 拦截响应
       const originalJson = res.json.bind(res);
       res.json = (body: unknown) => {
         const duration = Date.now() - startTime;
-        const logRes = { ...body as Record<string, unknown> };
 
-        // 排除大型数据
-        if (logRes['audio'] && typeof logRes['audio'] === 'string' && (logRes['audio'] as string).length > 100) {
-          logRes['audio'] = `[base64 ${(logRes['audio'] as string).length} chars]`;
-        }
-        if (logRes['segments'] && Array.isArray(logRes['segments'])) {
-          logRes['segments'] = `[${(logRes['segments'] as unknown[]).length} segments]`;
-        }
+        if (!skipLog) {
+          const logRes = { ...body as Record<string, unknown> };
 
-        logger.debug(MOD, `← ${method} ${path} ${res.statusCode} (${duration}ms)`, logRes);
+          // 排除大型数据
+          if (logRes['audio'] && typeof logRes['audio'] === 'string' && (logRes['audio'] as string).length > 100) {
+            logRes['audio'] = `[base64 ${(logRes['audio'] as string).length} chars]`;
+          }
+          if (logRes['audio_buffer'] && typeof logRes['audio_buffer'] === 'string' && (logRes['audio_buffer'] as string).length > 100) {
+            logRes['audio_buffer'] = `[base64 ${(logRes['audio_buffer'] as string).length} chars]`;
+          }
+          if (logRes['segments'] && Array.isArray(logRes['segments'])) {
+            logRes['segments'] = `[${(logRes['segments'] as unknown[]).length} segments]`;
+          }
+
+          logger.debug(MOD, `← ${method} ${reqPath} ${res.statusCode} (${duration}ms)`, logRes);
+        }
         return originalJson(body);
       };
 
