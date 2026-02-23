@@ -46,11 +46,15 @@ class VADEvent:
 class SileroVADDetector:
     """Silero VAD detector with state machine."""
 
+    # Silero VAD requires exactly 512 samples at 16kHz (32ms)
+    WINDOW_SIZE = 512
+
     def __init__(self, config: VADConfig | None = None):
         self._config = config or VADConfig()
         self._state = VADState.IDLE
         self._model = None
         self._audio_buffer: np.ndarray = np.array([], dtype=np.float32)
+        self._pending_audio: np.ndarray = np.array([], dtype=np.float32)  # Buffer for incomplete windows
         self._speech_start_time: float = 0.0
         self._silence_start_time: float | None = None
         self._current_time: float = 0.0
@@ -111,6 +115,7 @@ class SileroVADDetector:
         """Reset detector state."""
         self._state = VADState.IDLE
         self._audio_buffer = np.array([], dtype=np.float32)
+        self._pending_audio = np.array([], dtype=np.float32)
         self._speech_start_time = 0.0
         self._silence_start_time = None
         self._current_time = 0.0
@@ -144,6 +149,23 @@ class SileroVADDetector:
             if audio.max() > 1.0 or audio.min() < -1.0:
                 audio = audio / 32768.0
 
+        # Add to pending buffer
+        self._pending_audio = np.concatenate([self._pending_audio, audio])
+
+        # Process complete windows (512 samples each)
+        event = None
+        while len(self._pending_audio) >= self.WINDOW_SIZE:
+            window = self._pending_audio[: self.WINDOW_SIZE]
+            self._pending_audio = self._pending_audio[self.WINDOW_SIZE :]
+
+            result = self._process_window(window)
+            if result is not None:
+                event = result  # Keep the last event
+
+        return event
+
+    def _process_window(self, audio: np.ndarray) -> VADEvent | None:
+        """Process a single 512-sample window."""
         # Calculate chunk duration
         chunk_duration = len(audio) / self._config.sample_rate
         self._current_time += chunk_duration
