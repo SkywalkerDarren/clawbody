@@ -46,5 +46,8 @@ tests/integration/output/
 # Temp files
 services/qwen3-tts/voices/
 
+# Speaker verification data (contains personal voice embeddings)
+services/wespeaker-sv/data/
+
 # Legacy/external
 qwen-tts-service/
