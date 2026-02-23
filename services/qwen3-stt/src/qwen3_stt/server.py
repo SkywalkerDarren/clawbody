@@ -199,6 +199,10 @@ class SendChunkResponse(BaseModel):
     confidence: float | None = None
 
 
+class SendChunkRequest(BaseModel):
+    audio: str = Field(..., description="Base64 编码的 PCM 音频块")
+
+
 # === API 端点 ===
 
 
@@ -301,7 +305,7 @@ async def create_session(req: CreateSessionRequest):
 
 
 @app.post("/sessions/{session_id}/chunks", response_model=SendChunkResponse)
-async def send_chunk(session_id: str, audio: str = ""):
+async def send_chunk(session_id: str, req: SendChunkRequest):
     """发送音频块到会话 (HTTP 方式)"""
     if asr_model is None:
         raise HTTPException(503, "Model not loaded")
@@ -315,7 +319,7 @@ async def send_chunk(session_id: str, audio: str = ""):
 
     try:
         # 解码音频块 (PCM 16-bit, 16kHz, mono)
-        audio_bytes = base64.b64decode(audio)
+        audio_bytes = base64.b64decode(req.audio)
         wav16k = _pcm_to_float32(audio_bytes)
 
         session.state = SessionState.LISTENING

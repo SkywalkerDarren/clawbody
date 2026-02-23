@@ -35,6 +35,7 @@ export interface OpenClawConfig {
   webhookToken: string;
   sessionKey?: string;
   deliverChannel?: string;
+  deliverTo?: string;
 }
 
 /**
@@ -693,7 +694,8 @@ export class HttpServer {
         deliver: true,
         channel: oc.deliverChannel ?? 'telegram',
       };
-      if (oc.sessionKey) body['sessionKey'] = oc.sessionKey;
+      if (oc.sessionKey) body["sessionKey"] = oc.sessionKey;
+      if (oc.deliverTo) body["to"] = oc.deliverTo;
 
       const res = await fetch(`${oc.webhookUrl}/hooks/agent`, {
         method: 'POST',

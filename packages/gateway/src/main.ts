@@ -54,6 +54,7 @@ export interface BodyConfig {
     webhookToken: string;
     sessionKey?: string;
     deliverChannel?: string;
+    deliverTo?: string;
   };
   logging?: {
     level?: string;
