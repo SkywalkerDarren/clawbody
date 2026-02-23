@@ -1,0 +1,7 @@
+{
+  "name": "clawbody",
+  "version": "0.1.0",
+  "description": "OpenClaw channel plugin for ClawBody (Live2D + TTS)",
+  "type": "module",
+  "main": "index.js"
+}

@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ClawBody 是 OpenClaw AI 系统的"身体"组件，为远程 AI 大脑提供物理交互能力：
 - Live2D 桌面伴侣（眼神/表情）
 - TTS 语音合成（嘴巴）- 支持多提供商
+- STT 语音识别（耳朵）- 支持流式转录
 - Vision 屏幕截图（眼睛）
-- Microphone 语音输入（耳朵）- 计划中
 - Executor 脚本执行（手）- 计划中
 
 Brain-Body 通过 gRPC 通信（神经系统），支持 mDNS 自动发现。
@@ -18,9 +18,9 @@ Brain-Body 通过 gRPC 通信（神经系统），支持 mDNS 自动发现。
 ```
 ┌─────────┐    gRPC     ┌─────────────────────────────────┐
 │  Brain  │ ──────────► │           Gateway               │
-│ (远程)  │             │  ┌─────┐ ┌─────┐ ┌──────┐      │
-└─────────┘             │  │Live2D│ │ TTS │ │Vision│ ... │
-                        │  └─────┘ └─────┘ └──────┘      │
+│ (远程)  │             │  ┌─────┐ ┌─────┐ ┌─────┐ ┌────┐│
+└─────────┘             │  │Live2D│ │ TTS │ │ STT │ │Vis ││
+                        │  └─────┘ └─────┘ └─────┘ └────┘│
                         │         Capabilities            │
                         └───────────────┬─────────────────┘
                                         │ WS/SSE
@@ -149,13 +149,18 @@ pnpm --filter @clawbody/desktop start   # 启动桌面小部件
 pnpm proto:gen                          # 生成 protobuf 代码
 ```
 
-### Python (TTS 服务)
+### Python (TTS/STT 服务)
 
 ```bash
-cd services/qwen-tts
-
-# 依赖管理
+# TTS 服务
+cd services/qwen3-tts
 uv sync                                 # 安装依赖
+./start.sh                              # 启动 TTS 服务 (端口 8765)
+
+# STT 服务
+cd services/qwen3-stt
+uv sync                                 # 安装依赖
+./start.sh                              # 启动 STT 服务 (端口 8766)
 
 # 代码质量（必须通过）
 ruff check .                            # Lint 检查
@@ -166,8 +171,9 @@ pyright                                 # 类型检查
 pytest                                  # 运行测试
 pytest --cov=. --cov-report=term        # 覆盖率报告
 
-# 启动服务
-./start.sh                              # 启动 TTS 服务
+# STT 流式测试
+uv run --with httpx --with sounddevice --with websockets --with numpy \
+  python scripts/test_stt_stream.py
 ```
 
 ## 代码质量工具（必须使用）
@@ -219,6 +225,21 @@ interface ITTSProvider {
 }
 ```
 
+### STT 提供商接口
+
+```typescript
+interface ISTTProvider {
+  readonly id: string;
+  readonly name: string;
+  readonly supportedLanguages: SupportedLanguage[];
+  isAvailable(): Promise<boolean>;
+  transcribe(audio: Buffer, options?: TranscriptionOptions): Promise<TranscriptionResult>;
+  createStreamingSession(options?: StreamingSessionOptions): Promise<StreamingSession>;
+  sendAudioChunk(sessionId: string, chunk: Buffer): Promise<TranscriptSegment | null>;
+  endStreamingSession(sessionId: string): Promise<TranscriptionResult>;
+}
+```
+
 ### gRPC 服务
 
 ```protobuf
@@ -243,7 +264,15 @@ clawbody/
 ├── capabilities/
 │   ├── live2d/         # Live2D 能力 (表情、动作、显示)
 │   ├── tts/            # TTS 能力 (Edge, Qwen 提供商)
+│   ├── stt/            # STT 能力 (流式语音识别)
 │   └── vision/         # Vision 能力 (屏幕截图)
+├── services/
+│   ├── qwen3-tts/      # Qwen TTS Python 服务
+│   └── qwen3-stt/      # Qwen STT Python 服务 (流式)
+├── plugins/
+│   └── openclaw-presence/  # OpenClaw Presence 插件 (TTS 输出 + STT 输入)
+├── scripts/
+│   └── test_stt_stream.py  # STT 流式测试脚本
 ├── apps/
 │   └── desktop/        # Electron 桌面小部件
 ├── proto/              # Protocol Buffers 定义

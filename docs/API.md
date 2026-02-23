@@ -117,6 +117,112 @@ curl -X POST http://localhost:3000/api/execute \
 
 ---
 
+### STT 能力 (`stt`)
+
+#### transcribe - 批量转录
+
+将完整音频转换为文本。
+
+**输入参数:**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| audio | string | ✓ | Base64 编码的音频数据 |
+| language | string | | 语言代码 (auto/zh/en/ja/ko) |
+| provider | string | | STT 提供商 (qwen) |
+| enableTimestamps | boolean | | 是否返回时间戳 |
+
+**输出:**
+
+```json
+{
+  "text": "识别出的文本内容",
+  "segments": [
+    {
+      "text": "识别出的文本内容",
+      "start_time": 0.0,
+      "end_time": 3.5,
+      "confidence": 0.95,
+      "is_final": true
+    }
+  ],
+  "language": "zh",
+  "duration": 3.5
+}
+```
+
+#### startSession - 创建流式会话
+
+创建流式转录会话，用于实时语音识别。
+
+**输入参数:**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| language | string | | 语言代码 |
+| provider | string | | STT 提供商 |
+
+**输出:**
+
+```json
+{
+  "sessionId": "sess_abc123",
+  "state": "idle"
+}
+```
+
+#### sendChunk - 发送音频块
+
+向流式会话发送音频数据块。
+
+**输入参数:**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| sessionId | string | ✓ | 会话 ID |
+| audio | string | ✓ | Base64 编码的 PCM 音频块 (16kHz, 16-bit, mono) |
+
+**输出:**
+
+```json
+{
+  "text": "部分识别结果",
+  "isFinal": false,
+  "confidence": 0.85
+}
+```
+
+#### endSession - 结束会话
+
+结束流式会话并获取最终转录结果。
+
+**输入参数:**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| sessionId | string | ✓ | 会话 ID |
+
+**输出:**
+
+```json
+{
+  "text": "完整的转录文本",
+  "segments": [...],
+  "language": "zh",
+  "duration": 10.5
+}
+```
+
+#### listLanguages - 列出支持的语言
+
+**输出:**
+
+```json
+["auto", "zh", "en", "ja", "ko", "yue"]
+```
+
+---
+
 ### Live2D 能力 (`live2d`)
 
 #### expression - 设置表情

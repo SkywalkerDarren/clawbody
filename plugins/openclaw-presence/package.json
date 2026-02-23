@@ -1,7 +1,0 @@
-{
-  "name": "presence-channel",
-  "version": "0.1.0",
-  "description": "OpenClaw channel plugin for ClawBody presence (Live2D + TTS)",
-  "type": "module",
-  "main": "index.js"
-}

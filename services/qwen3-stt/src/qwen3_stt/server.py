@@ -29,8 +29,9 @@ logger = logging.getLogger(__name__)
 
 # 模型配置
 MODEL_PATH = os.getenv("QWEN_ASR_MODEL", "Qwen/Qwen3-ASR-1.7B")
-GPU_MEMORY_UTILIZATION = float(os.getenv("GPU_MEMORY_UTILIZATION", "0.8"))
+GPU_MEMORY_UTILIZATION = float(os.getenv("GPU_MEMORY_UTILIZATION", "0.3"))  # 降低显存占用
 MAX_NEW_TOKENS = int(os.getenv("MAX_NEW_TOKENS", "32"))
+MAX_MODEL_LEN = int(os.getenv("MAX_MODEL_LEN", "4096"))  # 限制最大序列长度，语音转录不需要太长
 
 # 全局模型实例
 asr_model = None
@@ -59,7 +60,7 @@ class StreamingSession:
 # 会话管理
 sessions: dict[str, StreamingSession] = {}
 SESSION_TIMEOUT_SEC = int(os.getenv("SESSION_TIMEOUT_SEC", "30"))
-MAX_CONCURRENT_SESSIONS = int(os.getenv("MAX_CONCURRENT_SESSIONS", "10"))
+MAX_CONCURRENT_SESSIONS = int(os.getenv("MAX_CONCURRENT_SESSIONS", "1"))  # 单输入源，只需1个会话
 
 
 def _resample_to_16k(wav: np.ndarray, sr: int) -> np.ndarray:
@@ -118,6 +119,7 @@ async def lifespan(app: FastAPI):
             model=MODEL_PATH,
             gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
             max_new_tokens=MAX_NEW_TOKENS,
+            max_model_len=MAX_MODEL_LEN,  # 限制 KV cache 大小
         )
         logger.info("Qwen3-ASR model loaded successfully")
     except Exception as e:
@@ -224,10 +226,20 @@ async def transcribe(req: TranscribeRequest):
 
         duration = len(wav16k) / 16000.0
 
-        # 转录
-        result = asr_model.transcribe(wav16k)
-        text = result.text if hasattr(result, "text") else str(result)
-        language = result.language if hasattr(result, "language") else req.language
+        # 保存到临时文件 (qwen_asr 需要文件路径)
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+            sf.write(tmp_path, wav16k, 16000, format="WAV")
+
+        try:
+            # 转录
+            result = asr_model.transcribe(tmp_path)
+            text = result.text if hasattr(result, "text") else str(result)
+            language = result.language if hasattr(result, "language") else req.language
+        finally:
+            import os
+            os.unlink(tmp_path)
 
         segments = [
             TranscriptSegment(
@@ -262,11 +274,11 @@ async def create_session(req: CreateSessionRequest):
     session_id = f"sess_{uuid.uuid4().hex[:12]}"
     now = datetime.now()
 
-    # 初始化流式状态
+    # 初始化流式状态 - 平衡延迟和准确性
     streaming_state = asr_model.init_streaming_state(
         unfixed_chunk_num=2,
         unfixed_token_num=5,
-        chunk_size_sec=2.0,
+        chunk_size_sec=1.0,  # 1秒的处理窗口
     )
 
     session = StreamingSession(

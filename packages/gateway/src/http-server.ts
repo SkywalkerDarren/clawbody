@@ -30,6 +30,13 @@ export interface PersonaConfig {
   motions: Record<string, string>;
 }
 
+export interface OpenClawConfig {
+  webhookUrl: string;
+  webhookToken: string;
+  sessionKey?: string;
+  deliverChannel?: string;
+}
+
 /**
  * HTTP/WebSocket/SSE 服务器 - 为前端提供通信接口
  */
@@ -42,13 +49,15 @@ export class HttpServer {
   private registry: CapabilityRegistry;
   private config: HttpServerConfig;
   private persona?: PersonaConfig;
+  private openclawConfig?: OpenClawConfig;
   private startTime = Date.now();
   private unsubscribes: Array<() => void> = [];
 
-  constructor(registry: CapabilityRegistry, config: HttpServerConfig, persona?: PersonaConfig) {
+  constructor(registry: CapabilityRegistry, config: HttpServerConfig, persona?: PersonaConfig, openclaw?: OpenClawConfig) {
     this.registry = registry;
     this.config = config;
     this.persona = persona;
+    this.openclawConfig = openclaw;
 
     this.app = express();
     this.httpServer = createServer(this.app);
@@ -649,6 +658,14 @@ export class HttpServer {
   }
 
   private handleCapabilityEvent(event: CapabilityEvent): void {
+    // STT 最终结果转发给 OpenClaw
+    if (event.capabilityId === 'stt') {
+      if (event.eventType === 'sessionEnded' && (event.data as { text?: string })?.text) {
+        const text = (event.data as { text: string }).text;
+        this.forwardSTTToOpenClaw(text).catch(() => {});
+      }
+    }
+
     // 将能力事件广播到前端
     if (event.eventType === 'command') {
       // Live2D 命令事件
@@ -663,6 +680,37 @@ export class HttpServer {
         eventType: event.eventType,
         data: event.data,
       });
+    }
+  }
+
+  private async forwardSTTToOpenClaw(text: string): Promise<void> {
+    const oc = this.openclawConfig;
+    if (!oc?.webhookUrl || !text.trim()) return;
+
+    try {
+      const body: Record<string, unknown> = {
+        message: text,
+        deliver: true,
+        channel: oc.deliverChannel ?? 'telegram',
+      };
+      if (oc.sessionKey) body['sessionKey'] = oc.sessionKey;
+
+      const res = await fetch(`${oc.webhookUrl}/hooks/agent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${oc.webhookToken}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        logger.error(MOD, `forward STT to OpenClaw failed: ${res.status}`);
+      } else {
+        logger.info(MOD, `STT forwarded to OpenClaw: "${text.slice(0, 50)}..."`);
+      }
+    } catch (err) {
+      logger.error(MOD, 'forward STT to OpenClaw error', err);
     }
   }
 

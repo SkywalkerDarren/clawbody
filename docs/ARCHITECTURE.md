@@ -10,7 +10,7 @@ ClawBody 是 OpenClaw AI 系统的"身体"部分，负责提供各种物理交�
 |----------|----------|------|
 | 眼神/表情 | Live2D | 桌面伴侣，视觉呈现 |
 | 嘴巴 | TTS | 语音合成输出 |
-| 耳朵 | Microphone | 语音输入 (计划中) |
+| 耳朵 | STT | 语音识别输入（流式支持） |
 | 眼睛 | Vision | 屏幕截图/视觉输入 |
 | 手 | Executor | 脚本执行/工具使用 (计划中) |
 | 神经系统 | Gateway | Brain-Body 通信 |
@@ -30,13 +30,13 @@ ClawBody 是 OpenClaw AI 系统的"身体"部分，负责提供各种物理交�
 │                    (能力注册 + 路由 + 状态)                        │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │  Live2D  │  │   TTS    │  │  Vision  │  │   Mic    │  ...   │
-│  │  (眼神)  │  │  (嘴巴)  │  │  (眼睛)  │  │  (耳朵)  │        │
+│  │  Live2D  │  │   TTS    │  │   STT    │  │  Vision  │  ...   │
+│  │  (眼神)  │  │  (嘴巴)  │  │  (耳朵)  │  │  (眼睛)  │        │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
 │       │              │              │              │            │
 │       ▼              ▼              ▼              ▼            │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │ Electron │  │Qwen/Edge │  │  scrot   │  │PulseAudio│        │
+│  │ Electron │  │Qwen/Edge │  │Qwen3-ASR │  │  scrot   │        │
 │  │ + PIXI   │  │ /Coqui   │  │          │  │          │        │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
 └─────────────────────────────────────────────────────────────────┘
@@ -71,12 +71,13 @@ clawbody/
 ├── capabilities/                   # 能力插件 (独立部署)
 │   ├── live2d/                     # Live2D 桌面伴侣
 │   ├── tts/                        # TTS 语音合成 (多提供商)
+│   ├── stt/                        # STT 语音识别 (流式支持)
 │   ├── vision/                     # 视觉/截图能力
-│   ├── microphone/                 # 麦克风输入 (计划中)
 │   └── executor/                   # 脚本执行 (计划中)
 │
 ├── services/                       # 外部服务
-│   └── qwen-tts/                   # Qwen TTS Python 服务
+│   ├── qwen3-tts/                  # Qwen TTS Python 服务
+│   └── qwen3-stt/                  # Qwen STT Python 服务 (流式)
 │
 ├── config/                         # 配置文件
 │   ├── default.yaml
@@ -190,34 +191,86 @@ interface ITTSProvider {
 2. 如果默认不可用，自动降级到备选
 3. 支持按请求指定提供商
 
-## 6. 部署模式
+## 6. STT 多提供商架构
 
-### 6.1 单机部署 (开发)
+### 6.1 提供商接口
+
+```typescript
+interface ISTTProvider {
+  readonly id: string;
+  readonly name: string;
+  readonly supportedLanguages: SupportedLanguage[];
+
+  isAvailable(): Promise<boolean>;
+  transcribe(audio: Buffer, options?: TranscriptionOptions): Promise<TranscriptionResult>;
+  transcribeStream(audioStream: AsyncIterable<Buffer>, options?: TranscriptionOptions): AsyncIterable<TranscriptSegment>;
+  createStreamingSession(options?: StreamingSessionOptions): Promise<StreamingSession>;
+  sendAudioChunk(sessionId: string, chunk: Buffer): Promise<TranscriptSegment | null>;
+  endStreamingSession(sessionId: string): Promise<TranscriptionResult>;
+  cancelStreamingSession(sessionId: string): Promise<void>;
+}
+```
+
+### 6.2 支持的提供商
+
+| 提供商 | 类型 | 特点 |
+|--------|------|------|
+| Qwen3-ASR | 本地 GPU | 高质量中英文，支持流式，需要 GPU |
+| Whisper | 本地 | 多语言，可离线（计划中） |
+| Azure Speech | 云端付费 | 高准确率，需要 API Key（计划中） |
+
+### 6.3 流式转录流程
+
+```
+┌─────────┐    创建会话     ┌─────────────┐
+│  客户端  │ ──────────────► │  STT 服务   │
+└─────────┘                 └─────────────┘
+     │                            │
+     │  WebSocket 连接            │
+     │ ◄─────────────────────────►│
+     │                            │
+     │  发送音频块 (PCM 16-bit)    │
+     │ ──────────────────────────►│
+     │                            │
+     │  返回部分转录结果           │
+     │ ◄──────────────────────────│
+     │                            │
+     │  发送结束信号               │
+     │ ──────────────────────────►│
+     │                            │
+     │  返回最终结果               │
+     │ ◄──────────────────────────│
+```
+
+## 7. 部署模式
+
+### 7.1 单机部署 (开发)
 
 所有组件在单一进程中运行，适合开发和简单场景。
 
-### 6.2 分离部署 (生产)
+### 7.2 分离部署 (生产)
 
 ```
 Gateway (主进程)
     ├── Live2D (Electron 进程)
     ├── TTS (Python 进程)
+    ├── STT (Python 进程)
     └── Vision (Node 进程)
 ```
 
 通过本地 IPC 或 Unix Socket 通信。
 
-### 6.3 分布式部署 (高可用)
+### 7.3 分布式部署 (高可用)
 
 多机部署，通过 gRPC 跨网络通信：
 
 - Machine 1: Gateway + Live2D
-- Machine 2: TTS (GPU 机器)
+- Machine 2: TTS + STT (GPU 机器)
 - Machine 3: Vision (多屏幕)
 
-## 7. 配置管理
+## 8. 配置管理
 
-### 7.1 配置文件
+### 8.1 配置文件
 
 ```yaml
 # config/default.yaml
@@ -235,30 +288,44 @@ capabilities:
         baseUrl: "http://localhost:8765"
       edge:
         defaultVoice: "zh-CN-XiaoxiaoNeural"
+  stt:
+    defaultProvider: "qwen"
+    providers:
+      qwen:
+        baseUrl: "http://localhost:8766"
+    streaming:
+      chunkDurationMs: 100
+      sessionTimeoutSec: 30
 ```
 
-### 7.2 环境变量
+### 8.2 环境变量
 
 - `NODE_ENV`: 运行环境 (development/production)
 - `API_KEY`: 认证密钥
-- `CUDA_VISIBLE_DEVICES`: GPU 设备 (TTS 服务)
+- `CUDA_VISIBLE_DEVICES`: GPU 设备 (TTS/STT 服务)
 
-## 8. 扩展指南
+## 9. 扩展指南
 
-### 8.1 添加新能力
+### 9.1 添加新能力
 
 1. 在 `capabilities/` 下创建新目录
 2. 实现 `ICapability` 接口
 3. 在配置文件中添加能力配置
 4. 在 Gateway 中注册能力
 
-### 8.2 添加新 TTS 提供商
+### 9.2 添加新 TTS 提供商
 
 1. 在 `capabilities/tts/src/providers/` 下创建新文件
 2. 实现 `ITTSProvider` 接口
 3. 在配置文件中添加提供商配置
 
-## 9. 参考
+### 9.3 添加新 STT 提供商
+
+1. 在 `capabilities/stt/src/providers/` 下创建新文件
+2. 实现 `ISTTProvider` 接口
+3. 在配置文件中添加提供商配置
+
+## 10. 参考
 
 - [Protocol Buffers](https://protobuf.dev/)
 - [gRPC Node.js](https://grpc.io/docs/languages/node/)

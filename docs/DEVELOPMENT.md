@@ -23,7 +23,12 @@ cd clawbody
 pnpm install
 
 # 安装 Python 依赖 (TTS 服务)
-cd services/qwen-tts
+cd services/qwen3-tts
+uv sync
+cd ../..
+
+# 安装 Python 依赖 (STT 服务)
+cd services/qwen3-stt
 uv sync
 cd ../..
 ```
@@ -64,10 +69,19 @@ clawbody/
 ├── capabilities/             # 能力插件
 │   ├── live2d/
 │   ├── tts/
+│   ├── stt/
 │   └── vision/
 │
 ├── services/                 # 外部服务
-│   └── qwen-tts/
+│   ├── qwen3-tts/            # Qwen TTS Python 服务
+│   └── qwen3-stt/            # Qwen STT Python 服务
+│
+├── plugins/                  # OpenClaw 插件
+│   └── openclaw-presence/    # Presence 通道插件
+│
+├── scripts/                  # 测试脚本
+│   ├── test_stt_stream.py    # STT 流式测试
+│   └── ...
 │
 ├── proto/                    # Protobuf 定义
 ├── config/                   # 配置文件
@@ -82,13 +96,17 @@ clawbody/
 
 ```bash
 # 终端 1: 启动 TTS 服务
-cd services/qwen-tts
+cd services/qwen3-tts
 ./start.sh
 
-# 终端 2: 启动 Gateway (开发模式)
+# 终端 2: 启动 STT 服务
+cd services/qwen3-stt
+./start.sh
+
+# 终端 3: 启动 Gateway (开发模式)
 pnpm --filter @clawbody/gateway dev
 
-# 终端 3: 启动 Live2D (开发模式)
+# 终端 4: 启动 Live2D (开发模式)
 pnpm --filter @clawbody/live2d dev
 ```
 

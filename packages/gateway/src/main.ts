@@ -49,6 +49,12 @@ export interface BodyConfig {
     };
     vision?: { enabled?: boolean; preferredTool?: string };
   };
+  openclaw?: {
+    webhookUrl: string;
+    webhookToken: string;
+    sessionKey?: string;
+    deliverChannel?: string;
+  };
   logging?: {
     level?: string;
   };
@@ -71,20 +77,46 @@ function loadConfig(): BodyConfig {
     join(__dirname, '..', '..', '..', 'config', 'default.yaml'),
   ];
 
-  for (const configPath of configPaths) {
-    if (existsSync(configPath)) {
-      logger.info('main', `Loading config from ${configPath}`);
-      const content = readFileSync(configPath, 'utf-8');
-      return parse(content) as BodyConfig;
-    }
-  }
-
-  logger.warn('main', 'No config file found, using defaults');
-  return {
+  let config: BodyConfig = {
     grpc: { port: 50051 },
     http: { port: 4000 },
     discovery: { enabled: true },
   };
+
+  // Load default config
+  for (const configPath of configPaths) {
+    if (existsSync(configPath)) {
+      logger.info('main', `Loading config from ${configPath}`);
+      const content = readFileSync(configPath, 'utf-8');
+      config = parse(content) as BodyConfig;
+      break;
+    }
+  }
+
+  // Load local config (overrides default, contains secrets)
+  const localPaths = [
+    join(process.cwd(), 'config', 'local.yaml'),
+    join(__dirname, '..', '..', '..', 'config', 'local.yaml'),
+  ];
+
+  for (const localPath of localPaths) {
+    if (existsSync(localPath)) {
+      logger.info('main', `Loading local config from ${localPath}`);
+      const localContent = readFileSync(localPath, 'utf-8');
+      const localConfig = parse(localContent) as Partial<BodyConfig>;
+      // Merge local config into default (shallow merge per section)
+      if (localConfig.persona) config.persona = { ...config.persona, ...localConfig.persona };
+      if (localConfig.grpc) config.grpc = { ...config.grpc, ...localConfig.grpc };
+      if (localConfig.http) config.http = { ...config.http, ...localConfig.http };
+      if (localConfig.discovery) config.discovery = { ...config.discovery, ...localConfig.discovery };
+      if (localConfig.capabilities) config.capabilities = { ...config.capabilities, ...localConfig.capabilities };
+      if (localConfig.openclaw) config.openclaw = localConfig.openclaw;
+      if (localConfig.logging) config.logging = { ...config.logging, ...localConfig.logging };
+      break;
+    }
+  }
+
+  return config;
 }
 
 /**
@@ -172,8 +204,8 @@ async function main(): Promise<void> {
   const grpcServer = new GatewayServer(registry);
   await grpcServer.start(config.grpc);
 
-  // 启动 HTTP/WS/SSE 服务器 (传入 persona 配置)
-  const httpServer = new HttpServer(registry, config.http, config.persona);
+  // 启动 HTTP/WS/SSE 服务器 (传入 persona 配置和 openclaw 配置)
+  const httpServer = new HttpServer(registry, config.http, config.persona, config.openclaw);
   await httpServer.start();
 
   // 启动 mDNS 服务发现

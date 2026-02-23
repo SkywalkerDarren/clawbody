@@ -8,7 +8,7 @@ persona:
   # 语音配置
   voice:
     provider: "qwen"           # edge, qwen
-    id: "2"                    # 声音 ID (内置或自定义)
+    id: "vivian"               # 声音 ID (内置或自定义)
     language: "Chinese"           # Auto, Chinese, English, Japanese, Korean
 
   # Live2D 模型配置
@@ -68,10 +68,27 @@ capabilities:
         type: "qwen"
         baseUrl: "http://localhost:8765"
 
+  # STT 语音识别
+  stt:
+    enabled: true
+    providers:
+      qwen:
+        type: "qwen"
+        baseUrl: "http://localhost:8766"
+
   # Vision 屏幕截图
   vision:
     enabled: true
     preferredTool: "auto"  # auto, scrot, import
+
+# ============ OpenClaw 集成 ============
+# STT 转录结果自动转发给 OpenClaw AI 处理
+# 复制此文件为 config/local.yaml 并填入真实配置
+openclaw:
+  webhookUrl: "http://localhost:18789"     # OpenClaw Gateway 地址
+  webhookToken: "your-webhook-token"       # Webhook 认证 token
+  sessionKey: "voice:default"              # 固定 session，保持上下文
+  deliverChannel: "telegram"               # 回复投递渠道
 
 # 日志配置
 logging:
