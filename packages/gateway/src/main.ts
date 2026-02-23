@@ -43,6 +43,10 @@ export interface BodyConfig {
       enabled?: boolean;
       providers?: Record<string, { type: string; baseUrl?: string }>;
     };
+    stt?: {
+      enabled?: boolean;
+      providers?: Record<string, { type: string; baseUrl?: string }>;
+    };
     vision?: { enabled?: boolean; preferredTool?: string };
   };
   logging?: {
@@ -133,6 +137,16 @@ async function main(): Promise<void> {
     }
   }
 
+  if (config.capabilities?.stt?.enabled !== false) {
+    try {
+      const { createSTTCapability } = await import('@clawbody/stt');
+      const stt = createSTTCapability();
+      registry.register(stt);
+    } catch (err) {
+      logger.warn('main', 'STT capability not available', err);
+    }
+  }
+
   // 初始化所有能力
   const defaultProvider = config.persona?.voice.provider ?? 'qwen';
   await registry.initializeAll({
@@ -141,6 +155,12 @@ async function main(): Promise<void> {
       defaultProvider,
       providers: config.capabilities?.tts?.providers ?? {
         qwen: { type: 'qwen', baseUrl: 'http://localhost:8765' },
+      },
+    },
+    stt: {
+      defaultProvider: 'qwen',
+      providers: config.capabilities?.stt?.providers ?? {
+        qwen: { type: 'qwen', baseUrl: 'http://localhost:8766' },
       },
     },
     vision: {

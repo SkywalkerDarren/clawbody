@@ -430,6 +430,183 @@ export class HttpServer {
       }
     });
 
+    // === STT (Speech-to-Text) 路由 ===
+
+    // POST /api/listen - 简化的语音识别接口
+    this.app.post('/api/listen', async (req: Request, res: Response) => {
+      const { audio, language } = req.body as { audio: string; language?: string };
+
+      if (!audio) {
+        send(res, 400, { error: 'audio is required (base64 encoded)' });
+        return;
+      }
+
+      const stt = this.registry.get('stt');
+      if (!stt) {
+        send(res, 503, { error: 'STT capability not available' });
+        return;
+      }
+
+      try {
+        const result = (await stt.execute('transcribe', {
+          audio,
+          language: language ?? 'auto',
+        })) as { text: string; language: string; duration: number };
+
+        send(res, 200, {
+          ok: true,
+          text: result.text,
+          language: result.language,
+          duration: result.duration,
+        });
+      } catch (err) {
+        logger.error(MOD, 'listen failed', err);
+        send(res, 500, { error: 'Transcription failed' });
+      }
+    });
+
+    // POST /api/stt/transcribe - 完整转录接口
+    this.app.post('/api/stt/transcribe', async (req: Request, res: Response) => {
+      const { audio, language, provider, enableTimestamps } = req.body as {
+        audio: string;
+        language?: string;
+        provider?: string;
+        enableTimestamps?: boolean;
+      };
+
+      if (!audio) {
+        send(res, 400, { error: 'audio is required' });
+        return;
+      }
+
+      const stt = this.registry.get('stt');
+      if (!stt) {
+        send(res, 503, { error: 'STT capability not available' });
+        return;
+      }
+
+      try {
+        const result = await stt.execute('transcribe', {
+          audio,
+          language,
+          provider,
+          enableTimestamps,
+        });
+        send(res, 200, result as object);
+      } catch (err) {
+        logger.error(MOD, 'stt/transcribe failed', err);
+        send(res, 500, { error: 'Transcription failed' });
+      }
+    });
+
+    // POST /api/stt/sessions - 创建流式会话
+    this.app.post('/api/stt/sessions', async (req: Request, res: Response) => {
+      const { language, provider } = req.body as { language?: string; provider?: string };
+
+      const stt = this.registry.get('stt');
+      if (!stt) {
+        send(res, 503, { error: 'STT capability not available' });
+        return;
+      }
+
+      try {
+        const result = (await stt.execute('startSession', { language, provider })) as {
+          sessionId: string;
+          state: string;
+        };
+        send(res, 200, {
+          sessionId: result.sessionId,
+          state: result.state,
+          wsUrl: `/api/stt/sessions/${result.sessionId}/stream`,
+        });
+      } catch (err) {
+        logger.error(MOD, 'stt/sessions create failed', err);
+        send(res, 500, { error: 'Failed to create session' });
+      }
+    });
+
+    // POST /api/stt/sessions/:sessionId/chunks - 发送音频块
+    this.app.post('/api/stt/sessions/:sessionId/chunks', async (req: Request, res: Response) => {
+      const { sessionId } = req.params;
+      const { audio } = req.body as { audio: string };
+
+      if (!audio) {
+        send(res, 400, { error: 'audio is required' });
+        return;
+      }
+
+      const stt = this.registry.get('stt');
+      if (!stt) {
+        send(res, 503, { error: 'STT capability not available' });
+        return;
+      }
+
+      try {
+        const result = await stt.execute('sendChunk', { sessionId, audio });
+        send(res, 200, result as object);
+      } catch (err) {
+        logger.error(MOD, 'stt/sessions/chunks failed', err);
+        send(res, 500, { error: 'Failed to process chunk' });
+      }
+    });
+
+    // POST /api/stt/sessions/:sessionId/end - 结束会话
+    this.app.post('/api/stt/sessions/:sessionId/end', async (req: Request, res: Response) => {
+      const { sessionId } = req.params;
+
+      const stt = this.registry.get('stt');
+      if (!stt) {
+        send(res, 503, { error: 'STT capability not available' });
+        return;
+      }
+
+      try {
+        const result = await stt.execute('endSession', { sessionId });
+        send(res, 200, result as object);
+      } catch (err) {
+        logger.error(MOD, 'stt/sessions/end failed', err);
+        send(res, 500, { error: 'Failed to end session' });
+      }
+    });
+
+    // DELETE /api/stt/sessions/:sessionId - 取消会话
+    this.app.delete('/api/stt/sessions/:sessionId', async (req: Request, res: Response) => {
+      const { sessionId } = req.params;
+
+      const stt = this.registry.get('stt');
+      if (!stt) {
+        send(res, 503, { error: 'STT capability not available' });
+        return;
+      }
+
+      try {
+        await stt.execute('cancelSession', { sessionId });
+        send(res, 200, { ok: true, sessionId });
+      } catch (err) {
+        logger.error(MOD, 'stt/sessions cancel failed', err);
+        send(res, 500, { error: 'Failed to cancel session' });
+      }
+    });
+
+    // GET /api/stt/languages - 列出支持的语言
+    this.app.get('/api/stt/languages', async (req: Request, res: Response) => {
+      const { provider } = req.query as { provider?: string };
+
+      const stt = this.registry.get('stt');
+      if (!stt) {
+        send(res, 503, { error: 'STT capability not available' });
+        return;
+      }
+
+      try {
+        const languages = await stt.execute('listLanguages', { provider });
+        send(res, 200, { languages });
+      } catch (err) {
+        logger.error(MOD, 'stt/languages failed', err);
+        send(res, 500, { error: 'Failed to list languages' });
+      }
+    });
+
     // GET /api/events (SSE)
     this.app.get('/api/events', (req: Request, res: Response) => {
       res.setHeader('Content-Type', 'text/event-stream');
