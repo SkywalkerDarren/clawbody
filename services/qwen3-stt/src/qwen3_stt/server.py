@@ -10,6 +10,7 @@ import io
 import json
 import logging
 import os
+import tempfile
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -127,7 +128,6 @@ async def lifespan(app: FastAPI):
         logger.info("Warming up model with 1s silent audio...")
         warmup_start = datetime.now()
         try:
-            import tempfile
             silent_audio = np.zeros(16000, dtype=np.float32)  # 1 秒 16kHz 静音
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                 sf.write(tmp.name, silent_audio, 16000, format="WAV")
@@ -135,7 +135,6 @@ async def lifespan(app: FastAPI):
             try:
                 _ = asr_model.transcribe(tmp_path)
             finally:
-                import os
                 os.unlink(tmp_path)
             warmup_time = (datetime.now() - warmup_start).total_seconds()
             logger.info(f"Model warmup completed in {warmup_time:.2f}s")
