@@ -247,6 +247,30 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.19.11)
 
+  packages/integration-tests:
+    devDependencies:
+      '@clawbody/core':
+        specifier: workspace:*
+        version: link:../core
+      '@clawbody/stt':
+        specifier: workspace:*
+        version: link:../../capabilities/stt
+      '@clawbody/tts':
+        specifier: workspace:*
+        version: link:../../capabilities/tts
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.11
+      '@vitest/coverage-v8':
+        specifier: ^2.1.0
+        version: 2.1.9(vitest@2.1.9(@types/node@22.19.11))
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.11)
+
   packages/proto-gen:
     dependencies:
       '@grpc/grpc-js':

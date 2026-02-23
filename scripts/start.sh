@@ -64,6 +64,10 @@ check_services() {
         return 0
     fi
 
+    if check_port 8766 "STT"; then
+        return 0
+    fi
+
     return 1  # 没有服务在运行
 }
 
@@ -94,6 +98,9 @@ graceful_shutdown() {
         if check_port 8765 "TTS"; then
             still_running=1
         fi
+        if check_port 8766 "STT"; then
+            still_running=1
+        fi
 
         if [ $still_running -eq 0 ]; then
             success "所有服务已关闭"
@@ -116,7 +123,7 @@ force_shutdown() {
     tmux kill-session -t "$SESSION_NAME" 2>/dev/null || true
 
     # Kill processes on ports
-    for port in 4000 50051 8765; do
+    for port in 4000 50051 8765 8766; do
         local pid=$(lsof -t -i :$port 2>/dev/null)
         if [ -n "$pid" ]; then
             warn "强制终止端口 $port 上的进程 (PID: $pid)"
@@ -144,25 +151,28 @@ start_services() {
     LEFT_PANE=$(tmux list-panes -t "$SESSION_NAME" -F "#{pane_id}" | head -1)
     RIGHT_PANE=$(tmux list-panes -t "$SESSION_NAME" -F "#{pane_id}" | tail -1)
 
-    # 左边垂直分割
+    # 左边垂直分割两次 (3个pane)
+    tmux split-window -v -t "$LEFT_PANE"
     tmux split-window -v -t "$LEFT_PANE"
 
     # 右边垂直分割
     tmux split-window -v -t "$RIGHT_PANE"
 
-    # pane 布局 (使用 session:window.pane 格式，window 从 1 开始):
+    # pane 布局 (使用 session:window.pane 格式):
     # 1.1: 左上 (Gateway)
-    # 1.2: 左下 (TTS)
-    # 1.3: 右上 (Debug)
-    # 1.4: 右下 (Live2D)
+    # 1.2: 左中 (TTS)
+    # 1.3: 左下 (STT)
+    # 1.4: 右上 (Debug)
+    # 1.5: 右下 (Live2D)
 
     sleep 0.3
 
     # 发送命令到各个 pane
     tmux send-keys -t "$SESSION_NAME:1.1" "cd '$PROJECT_ROOT' && pnpm --filter @clawbody/gateway dev" C-m
     tmux send-keys -t "$SESSION_NAME:1.2" "cd '$PROJECT_ROOT/services/qwen3-tts' && ./start.sh" C-m
-    tmux send-keys -t "$SESSION_NAME:1.3" "echo '=== Debug Pane ===' && cd '$PROJECT_ROOT'" C-m
-    tmux send-keys -t "$SESSION_NAME:1.4" "cd '$PROJECT_ROOT' && pnpm --filter @clawbody/desktop start" C-m
+    tmux send-keys -t "$SESSION_NAME:1.3" "cd '$PROJECT_ROOT/services/qwen3-stt' && ./start.sh" C-m
+    tmux send-keys -t "$SESSION_NAME:1.4" "echo '=== Debug Pane ===' && cd '$PROJECT_ROOT'" C-m
+    tmux send-keys -t "$SESSION_NAME:1.5" "cd '$PROJECT_ROOT' && pnpm --filter @clawbody/desktop start" C-m
 
     success "服务已在后台启动"
     echo ""
@@ -171,13 +181,14 @@ start_services() {
     echo -e "${GREEN}├─────────────────────────────────────────────────────────────┤${NC}"
     echo -e "${GREEN}│${NC}  Gateway:  http://localhost:4000                            ${GREEN}│${NC}"
     echo -e "${GREEN}│${NC}  TTS:      http://localhost:8765                            ${GREEN}│${NC}"
+    echo -e "${GREEN}│${NC}  STT:      http://localhost:8766                            ${GREEN}│${NC}"
     echo -e "${GREEN}│${NC}  gRPC:     localhost:50051                                  ${GREEN}│${NC}"
     echo -e "${GREEN}├─────────────────────────────────────────────────────────────┤${NC}"
     echo -e "${GREEN}│${NC}  查看日志: ${YELLOW}tmux attach -t $SESSION_NAME${NC}                        ${GREEN}│${NC}"
     echo -e "${GREEN}│${NC}  关闭服务: ${YELLOW}$0 --stop${NC}                              ${GREEN}│${NC}"
     echo -e "${GREEN}└─────────────────────────────────────────────────────────────┘${NC}"
     echo ""
-    info "TTS 服务需要约 30-60 秒加载模型，请稍候..."
+    info "TTS/STT 服务需要约 30-60 秒加载模型，请稍候..."
 }
 
 # 显示帮助
@@ -230,6 +241,12 @@ show_status() {
         success "TTS (8765): 运行中"
     else
         warn "TTS (8765): 未运行"
+    fi
+
+    if check_port 8766 "STT"; then
+        success "STT (8766): 运行中"
+    else
+        warn "STT (8766): 未运行"
     fi
 }
 

@@ -17,8 +17,8 @@ ClawBody gives your AI a physical presence. While the AI brain runs remotely, Cl
 |-----------|------------|----------|
 | Eyes/Expression | Live2D | Desktop companion with expressions and motions |
 | Mouth | TTS | Text-to-speech synthesis (multi-provider) |
+| Ears | STT | Speech-to-text recognition (streaming supported) |
 | Eyes | Vision | Screen capture |
-| Ears | Microphone | Voice input (planned) |
 | Hands | Executor | Script execution (planned) |
 | Nervous System | Gateway | Brain-Body gRPC communication |
 
@@ -37,14 +37,14 @@ ClawBody gives your AI a physical presence. While the AI brain runs remotely, Cl
 │              (Capability Registry + Routing + State)            │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │  Live2D  │  │   TTS    │  │  Vision  │  │   Mic    │  ...   │
-│  │  (Face)  │  │ (Mouth)  │  │  (Eyes)  │  │  (Ears)  │        │
+│  │  Live2D  │  │   TTS    │  │   STT    │  │  Vision  │  ...   │
+│  │  (Face)  │  │ (Mouth)  │  │  (Ears)  │  │  (Eyes)  │        │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
 │       │              │              │              │            │
 │       ▼              ▼              ▼              ▼            │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │ Electron │  │Qwen/Edge │  │  Screen  │  │  Audio   │        │
-│  │ + PIXI   │  │   TTS    │  │ Capture  │  │  Input   │        │
+│  │ Electron │  │Qwen/Edge │  │Qwen3-ASR │  │  Screen  │        │
+│  │ + PIXI   │  │   TTS    │  │          │  │ Capture  │        │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -53,6 +53,7 @@ ClawBody gives your AI a physical presence. While the AI brain runs remotely, Cl
 
 - **Live2D Desktop Companion** - Animated character with expressions and motions via PIXI.js
 - **Multi-Provider TTS** - Support for Qwen3-TTS (local GPU), Edge-TTS (cloud), and more
+- **Speech-to-Text (STT)** - Real-time streaming transcription with Qwen3-ASR
 - **Screen Capture** - Vision capability for AI to "see" the screen
 - **gRPC Communication** - Low-latency, bidirectional streaming between Brain and Body
 - **mDNS Discovery** - Automatic service discovery on local network
@@ -94,7 +95,12 @@ pnpm --filter @clawbody/gateway dev
 pnpm --filter @clawbody/desktop start
 
 # Terminal 3 (optional): Start Qwen TTS service
-cd services/qwen-tts
+cd services/qwen3-tts
+uv sync
+./start.sh
+
+# Terminal 4 (optional): Start Qwen STT service
+cd services/qwen3-stt
 uv sync
 ./start.sh
 ```
@@ -139,11 +145,13 @@ clawbody/
 ├── capabilities/
 │   ├── live2d/         # Live2D capability (expressions, motions)
 │   ├── tts/            # TTS capability (multi-provider)
+│   ├── stt/            # STT capability (speech recognition)
 │   └── vision/         # Vision capability (screen capture)
 ├── apps/
 │   └── desktop/        # Electron desktop widget
 ├── services/
-│   └── qwen-tts/       # Qwen TTS Python service
+│   ├── qwen3-tts/      # Qwen TTS Python service
+│   └── qwen3-stt/      # Qwen STT Python service
 ├── proto/              # Protocol Buffers definitions
 ├── config/             # Configuration files (YAML)
 └── docs/               # Documentation
@@ -157,6 +165,14 @@ clawbody/
 | Edge-TTS | Cloud (Free) | Microsoft voices, no GPU needed |
 | Coqui TTS | Local OSS | Multi-language, offline capable |
 | OpenAI TTS | Cloud (Paid) | High quality, requires API key |
+
+## STT Providers
+
+| Provider | Type | Features |
+|----------|------|----------|
+| Qwen3-ASR | Local GPU | High-quality Chinese/English, streaming support |
+| Whisper | Local | Multi-language, offline capable (planned) |
+| Azure Speech | Cloud (Paid) | High accuracy, requires API key (planned) |
 
 ## Documentation
 

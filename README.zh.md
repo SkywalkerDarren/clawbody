@@ -17,8 +17,8 @@ ClawBody 赋予 AI 物理存在感。AI 大脑在远程运行，而 ClawBody 在
 |----------|----------|------|
 | 眼神/表情 | Live2D | 桌面伴侣，表情和动作 |
 | 嘴巴 | TTS | 语音合成（多提供商） |
+| 耳朵 | STT | 语音识别（支持流式） |
 | 眼睛 | Vision | 屏幕截图 |
-| 耳朵 | Microphone | 语音输入（计划中） |
 | 手 | Executor | 脚本执行（计划中） |
 | 神经系统 | Gateway | Brain-Body gRPC 通信 |
 
@@ -37,13 +37,13 @@ ClawBody 赋予 AI 物理存在感。AI 大脑在远程运行，而 ClawBody 在
 │                  (能力注册 + 路由 + 状态管理)                     │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │  Live2D  │  │   TTS    │  │  Vision  │  │   Mic    │  ...   │
-│  │  (表情)  │  │  (嘴巴)  │  │  (眼睛)  │  │  (耳朵)  │        │
+│  │  Live2D  │  │   TTS    │  │   STT    │  │  Vision  │  ...   │
+│  │  (表情)  │  │  (嘴巴)  │  │  (耳朵)  │  │  (眼睛)  │        │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
 │       │              │              │              │            │
 │       ▼              ▼              ▼              ▼            │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │ Electron │  │Qwen/Edge │  │ 屏幕截图 │  │ 音频输入 │        │
+│  │ Electron │  │Qwen/Edge │  │Qwen3-ASR │  │ 屏幕截图 │        │
 │  │ + PIXI   │  │   TTS    │  │          │  │          │        │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
 └─────────────────────────────────────────────────────────────────┘
@@ -53,6 +53,7 @@ ClawBody 赋予 AI 物理存在感。AI 大脑在远程运行，而 ClawBody 在
 
 - **Live2D 桌面伴侣** - 基于 PIXI.js 的动画角色，支持表情和动作
 - **多提供商 TTS** - 支持 Qwen3-TTS（本地 GPU）、Edge-TTS（云端）等
+- **语音识别 (STT)** - 基于 Qwen3-ASR 的实时流式语音转文字
 - **屏幕截图** - Vision 能力让 AI 能够"看到"屏幕
 - **gRPC 通信** - Brain 和 Body 之间的低延迟双向流通信
 - **mDNS 发现** - 局域网内自动服务发现
@@ -94,7 +95,12 @@ pnpm --filter @clawbody/gateway dev
 pnpm --filter @clawbody/desktop start
 
 # 终端 3 (可选): 启动 Qwen TTS 服务
-cd services/qwen-tts
+cd services/qwen3-tts
+uv sync
+./start.sh
+
+# 终端 4 (可选): 启动 Qwen STT 服务
+cd services/qwen3-stt
 uv sync
 ./start.sh
 ```
@@ -139,11 +145,13 @@ clawbody/
 ├── capabilities/
 │   ├── live2d/         # Live2D 能力（表情、动作）
 │   ├── tts/            # TTS 能力（多提供商）
+│   ├── stt/            # STT 能力（语音识别）
 │   └── vision/         # Vision 能力（屏幕截图）
 ├── apps/
 │   └── desktop/        # Electron 桌面小部件
 ├── services/
-│   └── qwen-tts/       # Qwen TTS Python 服务
+│   ├── qwen3-tts/      # Qwen TTS Python 服务
+│   └── qwen3-stt/      # Qwen STT Python 服务
 ├── proto/              # Protocol Buffers 定义
 ├── config/             # 配置文件 (YAML)
 └── docs/               # 文档
@@ -157,6 +165,14 @@ clawbody/
 | Edge-TTS | 云端（免费） | 微软语音，无需 GPU |
 | Coqui TTS | 本地开源 | 多语言，可离线 |
 | OpenAI TTS | 云端（付费） | 高质量，需要 API Key |
+
+## STT 提供商
+
+| 提供商 | 类型 | 特点 |
+|--------|------|------|
+| Qwen3-ASR | 本地 GPU | 高质量中英文，支持流式 |
+| Whisper | 本地 | 多语言，可离线（计划中） |
+| Azure Speech | 云端（付费） | 高准确率，需要 API Key（计划中） |
 
 ## 文档
 
