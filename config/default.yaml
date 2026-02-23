@@ -76,6 +76,14 @@ capabilities:
         type: "qwen"
         baseUrl: "http://localhost:8766"
 
+  # VAD 语音活动检测
+  vad:
+    enabled: true
+    providers:
+      silero:
+        type: "silero"
+        baseUrl: "http://localhost:8767"
+
   # Vision 屏幕截图
   vision:
     enabled: true

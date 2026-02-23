@@ -222,6 +222,9 @@ importers:
       '@clawbody/tts':
         specifier: workspace:*
         version: link:../../capabilities/tts
+      '@clawbody/vad':
+        specifier: workspace:*
+        version: link:../../capabilities/vad
       '@clawbody/vision':
         specifier: workspace:*
         version: link:../../capabilities/vision

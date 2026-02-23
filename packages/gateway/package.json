@@ -21,6 +21,7 @@
     "@clawbody/proto-gen": "workspace:*",
     "@clawbody/stt": "workspace:*",
     "@clawbody/tts": "workspace:*",
+    "@clawbody/vad": "workspace:*",
     "@clawbody/vision": "workspace:*",
     "@grpc/grpc-js": "^1.12.0",
     "bonjour-service": "^1.3.0",

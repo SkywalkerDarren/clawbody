@@ -47,6 +47,10 @@ export interface BodyConfig {
       enabled?: boolean;
       providers?: Record<string, { type: string; baseUrl?: string }>;
     };
+    vad?: {
+      enabled?: boolean;
+      providers?: Record<string, { type: string; baseUrl?: string }>;
+    };
     vision?: { enabled?: boolean; preferredTool?: string };
   };
   openclaw?: {
@@ -182,6 +186,16 @@ async function main(): Promise<void> {
     }
   }
 
+  if (config.capabilities?.vad?.enabled !== false) {
+    try {
+      const { createVADCapability } = await import('@clawbody/vad');
+      const vad = createVADCapability();
+      registry.register(vad);
+    } catch (err) {
+      logger.warn('main', 'VAD capability not available', err);
+    }
+  }
+
   // 初始化所有能力
   const defaultProvider = config.persona?.voice.provider ?? 'qwen';
   await registry.initializeAll({
@@ -196,6 +210,12 @@ async function main(): Promise<void> {
       defaultProvider: 'qwen',
       providers: config.capabilities?.stt?.providers ?? {
         qwen: { type: 'qwen', baseUrl: 'http://localhost:8766' },
+      },
+    },
+    vad: {
+      defaultProvider: 'silero',
+      providers: config.capabilities?.vad?.providers ?? {
+        silero: { type: 'silero', baseUrl: 'http://localhost:8767' },
       },
     },
     vision: {
