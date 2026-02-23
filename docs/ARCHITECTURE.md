@@ -11,6 +11,7 @@ ClawBody 是 OpenClaw AI 系统的"身体"部分，负责提供各种物理交�
 | 眼神/表情 | Live2D | 桌面伴侣，视觉呈现 |
 | 嘴巴 | TTS | 语音合成输出 |
 | 耳朵 | STT | 语音识别输入（流式支持） |
+| 听觉神经 | VAD | 语音活动检测，触发 STT |
 | 眼睛 | Vision | 屏幕截图/视觉输入 |
 | 手 | Executor | 脚本执行/工具使用 (计划中) |
 | 神经系统 | Gateway | Brain-Body 通信 |
@@ -30,13 +31,13 @@ ClawBody 是 OpenClaw AI 系统的"身体"部分，负责提供各种物理交�
 │                    (能力注册 + 路由 + 状态)                        │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │  Live2D  │  │   TTS    │  │   STT    │  │  Vision  │  ...   │
-│  │  (眼神)  │  │  (嘴巴)  │  │  (耳朵)  │  │  (眼睛)  │        │
+│  │  Live2D  │  │   TTS    │  │   STT    │  │   VAD    │  ...   │
+│  │  (眼神)  │  │  (嘴巴)  │  │  (耳朵)  │  │(听觉神经)│        │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
 │       │              │              │              │            │
 │       ▼              ▼              ▼              ▼            │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │ Electron │  │Qwen/Edge │  │Qwen3-ASR │  │  scrot   │        │
+│  │ Electron │  │Qwen/Edge │  │Qwen3-ASR │  │Silero VAD│        │
 │  │ + PIXI   │  │ /Coqui   │  │          │  │          │        │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
 └─────────────────────────────────────────────────────────────────┘
@@ -72,12 +73,14 @@ clawbody/
 │   ├── live2d/                     # Live2D 桌面伴侣
 │   ├── tts/                        # TTS 语音合成 (多提供商)
 │   ├── stt/                        # STT 语音识别 (流式支持)
+│   ├── vad/                        # VAD 语音活动检测
 │   ├── vision/                     # 视觉/截图能力
 │   └── executor/                   # 脚本执行 (计划中)
 │
 ├── services/                       # 外部服务
 │   ├── qwen3-tts/                  # Qwen TTS Python 服务
-│   └── qwen3-stt/                  # Qwen STT Python 服务 (流式)
+│   ├── qwen3-stt/                  # Qwen STT Python 服务 (流式)
+│   └── silero-vad/                 # Silero VAD Python 服务
 │
 ├── config/                         # 配置文件
 │   ├── default.yaml
@@ -242,35 +245,87 @@ interface ISTTProvider {
      │ ◄──────────────────────────│
 ```
 
-## 7. 部署模式
+## 7. VAD 语音活动检测
 
-### 7.1 单机部署 (开发)
+### 7.1 提供商接口
+
+```typescript
+interface IVADProvider {
+  readonly id: string;
+  readonly name: string;
+
+  isAvailable(): Promise<boolean>;
+  processChunk(audio: Buffer): Promise<VADEvent | null>;
+  reset(): Promise<void>;
+  getConfig(): VADConfig;
+  updateConfig(config: Partial<VADConfig>): Promise<void>;
+}
+
+interface VADEvent {
+  type: 'speech_start' | 'speech_end' | 'speech_segment';
+  timestamp: number;
+  segment?: VADSegment;
+  audioBuffer?: Buffer;  // speech_end 时包含完整音频
+}
+```
+
+### 7.2 支持的提供商
+
+| 提供商 | 类型 | 特点 |
+|--------|------|------|
+| Silero VAD | 本地 CPU | 轻量级 (~1MB)，低延迟 (<10ms)，MIT 许可 |
+| Pyannote | 本地 GPU | 支持说话人分离（计划中） |
+
+### 7.3 VAD → STT 集成流程
+
+```
+┌─────────────┐     音频流      ┌─────────────┐
+│  Microphone │ ──────────────► │     VAD     │
+│   (输入)    │   PCM 16kHz     │   Capability │
+└─────────────┘                 └──────┬──────┘
+                                       │
+                    ┌──────────────────┼──────────────────┐
+                    │                  │                  │
+                    ▼                  ▼                  ▼
+            speech_start         speech_segment      speech_end
+                                                         │
+                                                         ▼
+                                                ┌───────────────┐
+                                                │  STT 转录     │
+                                                │  (完整音频)   │
+                                                └───────────────┘
+```
+
+## 8. 部署模式
+
+### 8.1 单机部署 (开发)
 
 所有组件在单一进程中运行，适合开发和简单场景。
 
-### 7.2 分离部署 (生产)
+### 8.2 分离部署 (生产)
 
 ```
 Gateway (主进程)
     ├── Live2D (Electron 进程)
     ├── TTS (Python 进程)
     ├── STT (Python 进程)
+    ├── VAD (Python 进程)
     └── Vision (Node 进程)
 ```
 
 通过本地 IPC 或 Unix Socket 通信。
 
-### 7.3 分布式部署 (高可用)
+### 8.3 分布式部署 (高可用)
 
 多机部署，通过 gRPC 跨网络通信：
 
 - Machine 1: Gateway + Live2D
-- Machine 2: TTS + STT (GPU 机器)
+- Machine 2: TTS + STT + VAD (GPU 机器)
 - Machine 3: Vision (多屏幕)
 
-## 8. 配置管理
+## 9. 配置管理
 
-### 8.1 配置文件
+### 9.1 配置文件
 
 ```yaml
 # config/default.yaml
@@ -296,36 +351,51 @@ capabilities:
     streaming:
       chunkDurationMs: 100
       sessionTimeoutSec: 30
+  vad:
+    defaultProvider: "silero"
+    providers:
+      silero:
+        baseUrl: "http://localhost:8767"
+    detection:
+      threshold: 0.5
+      minSpeechDurationMs: 250
+      minSilenceDurationMs: 500
 ```
 
-### 8.2 环境变量
+### 9.2 环境变量
 
 - `NODE_ENV`: 运行环境 (development/production)
 - `API_KEY`: 认证密钥
 - `CUDA_VISIBLE_DEVICES`: GPU 设备 (TTS/STT 服务)
 
-## 9. 扩展指南
+## 10. 扩展指南
 
-### 9.1 添加新能力
+### 10.1 添加新能力
 
 1. 在 `capabilities/` 下创建新目录
 2. 实现 `ICapability` 接口
 3. 在配置文件中添加能力配置
 4. 在 Gateway 中注册能力
 
-### 9.2 添加新 TTS 提供商
+### 10.2 添加新 TTS 提供商
 
 1. 在 `capabilities/tts/src/providers/` 下创建新文件
 2. 实现 `ITTSProvider` 接口
 3. 在配置文件中添加提供商配置
 
-### 9.3 添加新 STT 提供商
+### 10.3 添加新 STT 提供商
 
 1. 在 `capabilities/stt/src/providers/` 下创建新文件
 2. 实现 `ISTTProvider` 接口
 3. 在配置文件中添加提供商配置
 
-## 10. 参考
+### 10.4 添加新 VAD 提供商
+
+1. 在 `capabilities/vad/src/providers/` 下创建新文件
+2. 实现 `IVADProvider` 接口
+3. 在配置文件中添加提供商配置
+
+## 11. 参考
 
 - [Protocol Buffers](https://protobuf.dev/)
 - [gRPC Node.js](https://grpc.io/docs/languages/node/)

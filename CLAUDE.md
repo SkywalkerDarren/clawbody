@@ -8,6 +8,7 @@ ClawBody 是 OpenClaw AI 系统的"身体"组件，为远程 AI 大脑提供物�
 - Live2D 桌面伴侣（眼神/表情）
 - TTS 语音合成（嘴巴）- 支持多提供商
 - STT 语音识别（耳朵）- 支持流式转录
+- VAD 语音活动检测（听觉神经）- 触发 STT 转录
 - Vision 屏幕截图（眼睛）
 - Executor 脚本执行（手）- 计划中
 
@@ -16,19 +17,19 @@ Brain-Body 通过 gRPC 通信（神经系统），支持 mDNS 自动发现。
 ## 架构
 
 ```
-┌─────────┐    gRPC     ┌─────────────────────────────────┐
-│  Brain  │ ──────────► │           Gateway               │
-│ (远程)  │             │  ┌─────┐ ┌─────┐ ┌─────┐ ┌────┐│
-└─────────┘             │  │Live2D│ │ TTS │ │ STT │ │Vis ││
-                        │  └─────┘ └─────┘ └─────┘ └────┘│
-                        │         Capabilities            │
-                        └───────────────┬─────────────────┘
-                                        │ WS/SSE
-                                        ▼
-                        ┌─────────────────────────────────┐
-                        │     Desktop (Electron)          │
-                        │     PIXI.js + Live2D            │
-                        └─────────────────────────────────┘
+┌─────────┐    gRPC     ┌───────────────────────────────────────┐
+│  Brain  │ ──────────► │              Gateway                  │
+│ (远程)  │             │  ┌─────┐ ┌───┐ ┌───┐ ┌───┐ ┌────┐    │
+└─────────┘             │  │Live2D│ │TTS│ │STT│ │VAD│ │Vis │ ...│
+                        │  └─────┘ └───┘ └───┘ └───┘ └────┘    │
+                        │            Capabilities               │
+                        └───────────────────┬───────────────────┘
+                                            │ WS/SSE
+                                            ▼
+                        ┌───────────────────────────────────────┐
+                        │        Desktop (Electron)             │
+                        │        PIXI.js + Live2D               │
+                        └───────────────────────────────────────┘
 ```
 
 - **Gateway**: 唯一入口，提供 gRPC (外部) + HTTP/WS/SSE (前端)
@@ -149,7 +150,7 @@ pnpm --filter @clawbody/desktop start   # 启动桌面小部件
 pnpm proto:gen                          # 生成 protobuf 代码
 ```
 
-### Python (TTS/STT 服务)
+### Python (TTS/STT/VAD 服务)
 
 ```bash
 # TTS 服务
@@ -161,6 +162,11 @@ uv sync                                 # 安装依赖
 cd services/qwen3-stt
 uv sync                                 # 安装依赖
 ./start.sh                              # 启动 STT 服务 (端口 8766)
+
+# VAD 服务
+cd services/silero-vad
+uv sync                                 # 安装依赖
+./start.sh                              # 启动 VAD 服务 (端口 8767)
 
 # 代码质量（必须通过）
 ruff check .                            # Lint 检查
@@ -265,10 +271,12 @@ clawbody/
 │   ├── live2d/         # Live2D 能力 (表情、动作、显示)
 │   ├── tts/            # TTS 能力 (Edge, Qwen 提供商)
 │   ├── stt/            # STT 能力 (流式语音识别)
+│   ├── vad/            # VAD 能力 (语音活动检测)
 │   └── vision/         # Vision 能力 (屏幕截图)
 ├── services/
 │   ├── qwen3-tts/      # Qwen TTS Python 服务
-│   └── qwen3-stt/      # Qwen STT Python 服务 (流式)
+│   ├── qwen3-stt/      # Qwen STT Python 服务 (流式)
+│   └── silero-vad/     # Silero VAD Python 服务
 ├── plugins/
 │   └── openclaw-presence/  # OpenClaw Presence 插件 (TTS 输出 + STT 输入)
 ├── scripts/
@@ -289,3 +297,4 @@ clawbody/
 - `docs/DEPLOYMENT.md` - 部署指南
 - `docs/MIGRATION.md` - 迁移计划
 - `docs/ROADMAP.md` - 产品路线图
+- `docs/VAD-DESIGN.md` - VAD 模块设计文档

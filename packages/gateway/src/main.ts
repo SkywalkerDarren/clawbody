@@ -51,10 +51,7 @@ export interface BodyConfig {
   };
   openclaw?: {
     webhookUrl: string;
-    webhookToken: string;
     sessionKey?: string;
-    deliverChannel?: string;
-    deliverTo?: string;
   };
   logging?: {
     level?: string;

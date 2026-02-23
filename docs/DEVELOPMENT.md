@@ -31,6 +31,11 @@ cd ../..
 cd services/qwen3-stt
 uv sync
 cd ../..
+
+# 安装 Python 依赖 (VAD 服务)
+cd services/silero-vad
+uv sync
+cd ../..
 ```
 
 ### 4. 生成 Protobuf 代码
@@ -70,11 +75,13 @@ clawbody/
 │   ├── live2d/
 │   ├── tts/
 │   ├── stt/
+│   ├── vad/
 │   └── vision/
 │
 ├── services/                 # 外部服务
 │   ├── qwen3-tts/            # Qwen TTS Python 服务
-│   └── qwen3-stt/            # Qwen STT Python 服务
+│   ├── qwen3-stt/            # Qwen STT Python 服务
+│   └── silero-vad/           # Silero VAD Python 服务
 │
 ├── plugins/                  # OpenClaw 插件
 │   └── openclaw-presence/    # Presence 通道插件
@@ -103,10 +110,14 @@ cd services/qwen3-tts
 cd services/qwen3-stt
 ./start.sh
 
-# 终端 3: 启动 Gateway (开发模式)
+# 终端 3: 启动 VAD 服务
+cd services/silero-vad
+./start.sh
+
+# 终端 4: 启动 Gateway (开发模式)
 pnpm --filter @clawbody/gateway dev
 
-# 终端 4: 启动 Live2D (开发模式)
+# 终端 5: 启动 Live2D (开发模式)
 pnpm --filter @clawbody/live2d dev
 ```
 

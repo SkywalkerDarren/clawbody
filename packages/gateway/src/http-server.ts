@@ -32,10 +32,7 @@ export interface PersonaConfig {
 
 export interface OpenClawConfig {
   webhookUrl: string;
-  webhookToken: string;
   sessionKey?: string;
-  deliverChannel?: string;
-  deliverTo?: string;
 }
 
 /**
@@ -722,20 +719,15 @@ export class HttpServer {
     if (!oc?.webhookUrl || !text.trim()) return;
 
     try {
-      const voiceMessage = `[Voice] ${text}\n\n[System: Reply in short spoken sentences, max 2 sentences, no markdown or special symbols.]`;
       const body: Record<string, unknown> = {
-        message: voiceMessage,
-        deliver: true,
-        channel: oc.deliverChannel ?? 'clawbody',
+        text,
       };
-      if (oc.sessionKey) body["sessionKey"] = oc.sessionKey;
-      if (oc.deliverTo) body["to"] = oc.deliverTo;
+      if (oc.sessionKey) body['sessionKey'] = oc.sessionKey;
 
-      const res = await fetch(`${oc.webhookUrl}/hooks/agent`, {
+      const res = await fetch(`${oc.webhookUrl}/plugins/clawbody/inbound`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${oc.webhookToken}`,
         },
         body: JSON.stringify(body),
       });

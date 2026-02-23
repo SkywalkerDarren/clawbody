@@ -86,9 +86,7 @@ capabilities:
 # 复制此文件为 config/local.yaml 并填入真实配置
 openclaw:
   webhookUrl: "http://localhost:18789"     # OpenClaw Gateway 地址
-  webhookToken: "your-webhook-token"       # Webhook 认证 token
   sessionKey: "voice:default"              # 固定 session，保持上下文
-  deliverChannel: "telegram"               # 回复投递渠道
 
 # 日志配置
 logging:
