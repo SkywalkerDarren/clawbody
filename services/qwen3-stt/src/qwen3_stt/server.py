@@ -122,6 +122,18 @@ async def lifespan(app: FastAPI):
             max_model_len=MAX_MODEL_LEN,  # 限制 KV cache 大小
         )
         logger.info("Qwen3-ASR model loaded successfully")
+
+        # 模型预热: 使用 1 秒静音音频
+        logger.info("Warming up model with 1s silent audio...")
+        warmup_start = datetime.now()
+        silent_audio = np.zeros(16000, dtype=np.float32)  # 1 秒 16kHz 静音
+        try:
+            _ = asr_model.transcribe(silent_audio)
+            warmup_time = (datetime.now() - warmup_start).total_seconds()
+            logger.info(f"Model warmup completed in {warmup_time:.2f}s")
+        except Exception as e:
+            logger.warning(f"Model warmup failed (non-critical): {e}")
+
     except Exception as e:
         logger.error(f"Failed to load model: {e}")
         asr_model = None

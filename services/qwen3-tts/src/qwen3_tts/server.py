@@ -147,6 +147,19 @@ async def lifespan(app: FastAPI):
             logger.warning(f"CustomVoice model not loaded: {e}")
             custom_model = None
 
+        # 模型预热: 合成一句简短的话
+        logger.info("Warming up model with test synthesis...")
+        import time
+        warmup_start = time.time()
+        try:
+            warmup_text = "系统启动完成"
+            # 使用内置声音预热
+            _ = model.synthesize(warmup_text, voice="1")
+            warmup_time = time.time() - warmup_start
+            logger.info(f"Model warmup completed in {warmup_time:.2f}s")
+        except Exception as e:
+            logger.warning(f"Model warmup failed (non-critical): {e}")
+
     except Exception as e:
         logger.error(f"Failed to load model: {e}")
         model = None
