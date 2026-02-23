@@ -79,10 +79,19 @@ def _resample_to_16k(wav: np.ndarray, sr: int) -> np.ndarray:
 
 
 def _decode_audio(audio_bytes: bytes) -> tuple[np.ndarray, int]:
-    """解码音频数据"""
-    with io.BytesIO(audio_bytes) as f:
-        wav, sr = sf.read(f, dtype="float32", always_2d=False)
-    return np.asarray(wav, dtype=np.float32), int(sr)
+    """解码音频数据，支持 WAV 格式和原始 PCM"""
+    # 尝试作为 WAV 格式解码
+    try:
+        with io.BytesIO(audio_bytes) as f:
+            wav, sr = sf.read(f, dtype="float32", always_2d=False)
+        return np.asarray(wav, dtype=np.float32), int(sr)
+    except Exception:
+        pass
+
+    # 回退到原始 PCM 16-bit, 16kHz
+    pcm_array = np.frombuffer(audio_bytes, dtype=np.int16)
+    wav = pcm_array.astype(np.float32) / 32768.0
+    return wav, 16000
 
 
 def _pcm_to_float32(pcm_bytes: bytes, sample_rate: int = 16000) -> np.ndarray:
