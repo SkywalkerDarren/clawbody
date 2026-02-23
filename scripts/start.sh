@@ -176,20 +176,20 @@ start_services() {
     # pane 布局 (使用 session:window.pane 格式):
     # 1.1: 左上 (Gateway)
     # 1.2: 左中 (Live2D)
-    # 1.3: 左下 (Debug)
+    # 1.3: 左下 (SV)
     # 1.4: 右上 (STT)
     # 1.5: 右中 (TTS)
-    # 1.6: 右下 (VAD/SV)
+    # 1.6: 右下 (VAD)
 
     sleep 0.3
 
     # 发送命令到各个 pane
     tmux send-keys -t "$SESSION_NAME:1.1" "cd '$PROJECT_ROOT' && pnpm --filter @clawbody/gateway dev" C-m
     tmux send-keys -t "$SESSION_NAME:1.2" "cd '$PROJECT_ROOT' && pnpm --filter @clawbody/desktop start" C-m
-    tmux send-keys -t "$SESSION_NAME:1.3" "echo '=== Debug Pane ===' && cd '$PROJECT_ROOT'" C-m
+    tmux send-keys -t "$SESSION_NAME:1.3" "cd '$PROJECT_ROOT/services/wespeaker-sv' && ./start.sh" C-m
     tmux send-keys -t "$SESSION_NAME:1.4" "cd '$PROJECT_ROOT/services/qwen3-stt' && ./start.sh" C-m
     tmux send-keys -t "$SESSION_NAME:1.5" "cd '$PROJECT_ROOT/services/qwen3-tts' && ./start.sh" C-m
-    tmux send-keys -t "$SESSION_NAME:1.6" "cd '$PROJECT_ROOT/services/silero-vad' && ./start.sh; cd '$PROJECT_ROOT/services/wespeaker-sv' && ./start.sh" C-m
+    tmux send-keys -t "$SESSION_NAME:1.6" "cd '$PROJECT_ROOT/services/silero-vad' && ./start.sh" C-m
 
     success "服务已在后台启动"
     echo ""
