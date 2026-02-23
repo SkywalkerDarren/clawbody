@@ -960,6 +960,35 @@ export class HttpServer {
   }
 
   private async handleVADSpeechEnd(audioBuffer: string): Promise<void> {
+    // 先进行说话人验证
+    const sv = this.registry.get('speaker-verification');
+    if (sv) {
+      try {
+        const svResult = (await sv.execute('verify', { audio: audioBuffer })) as {
+          verified: boolean;
+          speakerId: string | null;
+          speakerName: string | null;
+          confidence: number;
+        };
+
+        if (!svResult.verified) {
+          logger.info(
+            MOD,
+            `SV rejected: confidence=${svResult.confidence.toFixed(2)}, not a registered speaker`
+          );
+          return; // 不是注册用户，丢弃音频
+        }
+
+        logger.info(
+          MOD,
+          `SV verified: ${svResult.speakerName} (${svResult.speakerId}), confidence=${svResult.confidence.toFixed(2)}`
+        );
+      } catch (err) {
+        // SV 服务不可用时，跳过验证继续 STT
+        logger.warn(MOD, 'SV verification failed, proceeding to STT', err);
+      }
+    }
+
     const stt = this.registry.get('stt');
     if (!stt) {
       logger.warn(MOD, 'VAD speech_end but STT not available');
