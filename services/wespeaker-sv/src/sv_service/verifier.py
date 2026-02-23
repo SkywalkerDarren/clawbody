@@ -99,7 +99,7 @@ class SpeakerVerifier:
 
         try:
             logger.info(f"Downloading from {url}")
-            response = requests.get(url, stream=True, timeout=300)
+            response = requests.get(url, stream=True, timeout=300, verify=False)
             response.raise_for_status()
 
             content = response.content
