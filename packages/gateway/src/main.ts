@@ -127,6 +127,11 @@ async function main(): Promise<void> {
   const config = loadConfig();
   globalConfig = config;
 
+  // 设置日志级别
+  if (config.logging?.level) {
+    logger.setLevel(config.logging.level as 'debug' | 'info' | 'warn' | 'error');
+  }
+
   logger.info('main', 'Starting ClawBody...');
 
   if (config.persona) {

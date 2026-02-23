@@ -73,6 +73,39 @@ export class HttpServer {
   private setupMiddleware(): void {
     this.app.use(express.json());
 
+    // 请求/响应日志中间件
+    this.app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+      const startTime = Date.now();
+      const { method, path } = req;
+
+      // 记录请求 (排除大型 audio 数据)
+      const logBody = { ...req.body };
+      if (logBody.audio && typeof logBody.audio === 'string' && logBody.audio.length > 100) {
+        logBody.audio = `[base64 ${logBody.audio.length} chars]`;
+      }
+      logger.debug(MOD, `→ ${method} ${path}`, Object.keys(logBody).length > 0 ? logBody : undefined);
+
+      // 拦截响应
+      const originalJson = res.json.bind(res);
+      res.json = (body: unknown) => {
+        const duration = Date.now() - startTime;
+        const logRes = { ...body as Record<string, unknown> };
+
+        // 排除大型数据
+        if (logRes['audio'] && typeof logRes['audio'] === 'string' && (logRes['audio'] as string).length > 100) {
+          logRes['audio'] = `[base64 ${(logRes['audio'] as string).length} chars]`;
+        }
+        if (logRes['segments'] && Array.isArray(logRes['segments'])) {
+          logRes['segments'] = `[${(logRes['segments'] as unknown[]).length} segments]`;
+        }
+
+        logger.debug(MOD, `← ${method} ${path} ${res.statusCode} (${duration}ms)`, logRes);
+        return originalJson(body);
+      };
+
+      next();
+    });
+
     // 静态文件服务
     const staticDir = this.config.staticDir ?? path.join(__dirname, '..', 'public');
     this.app.use(express.static(staticDir));
@@ -689,10 +722,11 @@ export class HttpServer {
     if (!oc?.webhookUrl || !text.trim()) return;
 
     try {
+      const voiceMessage = `[Voice] ${text}\n\n[System: Reply in short spoken sentences, max 2 sentences, no markdown or special symbols.]`;
       const body: Record<string, unknown> = {
-        message: text,
+        message: voiceMessage,
         deliver: true,
-        channel: oc.deliverChannel ?? 'telegram',
+        channel: oc.deliverChannel ?? 'clawbody',
       };
       if (oc.sessionKey) body["sessionKey"] = oc.sessionKey;
       if (oc.deliverTo) body["to"] = oc.deliverTo;
