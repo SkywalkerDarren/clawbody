@@ -155,10 +155,14 @@ async def process(req: ProcessRequest):
             response.event = event.type
             response.confidence = event.confidence or 0.0
 
-            if event.type == "speech_end" and event.audio_buffer is not None:
+            if event.type == "speech_start":
+                logger.info(f"🎤 Speech started (confidence: {response.confidence:.2f})")
+            elif event.type == "speech_end" and event.audio_buffer is not None:
                 # Convert float32 back to int16 for transmission
                 audio_int16_out = (event.audio_buffer * 32768).astype(np.int16)
                 response.audio_buffer = base64.b64encode(audio_int16_out.tobytes()).decode()
+                duration = len(event.audio_buffer) / 16000
+                logger.info(f"⏹️  Speech ended (duration: {duration:.2f}s, buffer: {len(audio_int16_out)} samples)")
 
         return response
 
@@ -228,7 +232,7 @@ def main():
     port = int(os.getenv("PORT", "8767"))
 
     logger.info(f"Starting Silero VAD service on {host}:{port}")
-    uvicorn.run(app, host=host, port=port)
+    uvicorn.run(app, host=host, port=port, access_log=False)
 
 
 if __name__ == "__main__":
