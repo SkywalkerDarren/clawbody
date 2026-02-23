@@ -167,7 +167,7 @@ def main():
 
     print('\n📨 ClawBody 已自动转发给 OpenClaw，等待 AI 回复 + TTS 播放...')
     print('   (回复会通过 ClawBody 的扬声器播放出来)')
-    print(f'\n⏱️  计时开始: STT 完成于 {time.strftime(%H:%M:%S)}')
+    print(f'\n⏱️  计时开始: STT 完成于 {time.strftime("%H:%M:%S")}')
     print('   听到 TTS 播放时记录时间，即为端到端延迟。')
 
 
