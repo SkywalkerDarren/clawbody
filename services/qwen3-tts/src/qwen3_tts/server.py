@@ -153,10 +153,19 @@ async def lifespan(app: FastAPI):
         warmup_start = time.time()
         try:
             warmup_text = "系统启动完成"
-            # 使用内置声音预热
-            _ = model.synthesize(warmup_text, voice="1")
-            warmup_time = time.time() - warmup_start
-            logger.info(f"Model warmup completed in {warmup_time:.2f}s")
+            # 优先使用 vivian 声音预热，如果没有则使用第一个自定义声音
+            warmup_voice = "vivian" if "vivian" in voice_prompts else next(iter(voice_prompts.keys()), None)
+            if warmup_voice and warmup_voice in voice_prompts:
+                logger.info(f"Warmup using custom voice: {warmup_voice}")
+                prompt_data = voice_prompts[warmup_voice]
+                _ = model.generate_voice_clone(
+                    text=warmup_text,
+                    prompt=prompt_data["prompt"],
+                )
+                warmup_time = time.time() - warmup_start
+                logger.info(f"Model warmup completed in {warmup_time:.2f}s")
+            else:
+                logger.warning("No custom voice available for warmup, skipping")
         except Exception as e:
             logger.warning(f"Model warmup failed (non-critical): {e}")
 
