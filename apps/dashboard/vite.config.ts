@@ -4,10 +4,15 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  base: '/dashboard/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+  },
+  build: {
+    outDir: '../../packages/gateway/public/dashboard',
+    emptyOutDir: true,
   },
   server: {
     port: 5173,
