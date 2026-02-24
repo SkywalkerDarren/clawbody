@@ -205,9 +205,11 @@ start_services() {
     echo -e "${GREEN}├─────────────────────────────────────────────────────────────┤${NC}"
     echo -e "${GREEN}│${NC}  查看日志: ${YELLOW}tmux attach -t $SESSION_NAME${NC}                        ${GREEN}│${NC}"
     echo -e "${GREEN}│${NC}  关闭服务: ${YELLOW}$0 --stop${NC}                              ${GREEN}│${NC}"
+    echo -e "${GREEN}│${NC}  等待就绪: ${YELLOW}$0 --wait${NC}                              ${GREEN}│${NC}"
     echo -e "${GREEN}└─────────────────────────────────────────────────────────────┘${NC}"
     echo ""
-    info "TTS/STT/SV 服务需要约 30-60 秒加载模型，请稍候..."
+    info "TTS/STT/SV 服务需要约 30-60 秒加载模型"
+    info "运行 '$0 --wait' 等待所有服务就绪"
 }
 
 # 显示帮助
@@ -223,6 +225,7 @@ show_help() {
     echo "  --force, -f     强制重启 (与 --restart 一起使用)"
     echo "  --status        查看服务状态"
     echo "  --check         运行诊断检查"
+    echo "  --wait          等待所有服务就绪"
     echo "  --attach, -a    附加到 tmux session"
     echo "  --help, -h      显示帮助"
     echo ""
@@ -232,6 +235,7 @@ show_help() {
     echo "  $0 --restart    重启服务"
     echo "  $0 --restart -f 强制重启"
     echo "  $0 --check      检查服务健康状态"
+    echo "  $0 --wait       等待服务就绪"
     echo "  $0 --attach     查看日志"
 }
 
@@ -384,6 +388,116 @@ run_diagnostics() {
     echo ""
 }
 
+# 等待所有服务就绪
+wait_for_ready() {
+    local timeout=${1:-120}  # 默认 120 秒超时
+    local interval=3
+    local elapsed=0
+
+    echo ""
+    echo -e "${BLUE}等待服务就绪...${NC}"
+    echo "═══════════════════════════════════════════════════════════"
+    echo ""
+
+    # 先等待 Gateway 启动
+    echo -n "Gateway: "
+    while ! check_port 4000 "Gateway" 2>/dev/null; do
+        if [ $elapsed -ge $timeout ]; then
+            echo -e "${RED}超时${NC}"
+            error "Gateway 启动超时"
+            return 1
+        fi
+        echo -n "."
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+    echo -e " ${GREEN}✓${NC}"
+
+    # 等待各服务就绪
+    local services=("tts" "stt" "vad" "speaker-verification")
+    local service_names=("TTS" "STT" "VAD" "SV")
+    local all_ready=0
+
+    while [ $all_ready -eq 0 ] && [ $elapsed -lt $timeout ]; do
+        all_ready=1
+
+        # 调用 diagnostics API
+        local response
+        response=$(curl -s --max-time 5 "http://localhost:4000/api/diagnostics" 2>/dev/null)
+
+        if [ -z "$response" ]; then
+            sleep $interval
+            elapsed=$((elapsed + interval))
+            continue
+        fi
+
+        # 检查各服务状态
+        if command -v jq &> /dev/null; then
+            for i in "${!services[@]}"; do
+                local service="${services[$i]}"
+                local name="${service_names[$i]}"
+                local status=$(echo "$response" | jq -r ".services[\"$service\"].status" 2>/dev/null)
+
+                case $status in
+                    "ok")
+                        printf "  %-20s ${GREEN}✓ 就绪${NC}\n" "$name"
+                        ;;
+                    "error")
+                        local msg=$(echo "$response" | jq -r ".services[\"$service\"].message" 2>/dev/null)
+                        printf "  %-20s ${YELLOW}⏳ 加载中${NC} (%s)\n" "$name" "$msg"
+                        all_ready=0
+                        ;;
+                    *)
+                        printf "  %-20s ${YELLOW}⏳ 等待中${NC}\n" "$name"
+                        all_ready=0
+                        ;;
+                esac
+            done
+
+            if [ $all_ready -eq 0 ]; then
+                echo ""
+                echo -e "  ${YELLOW}等待中... (${elapsed}s/${timeout}s)${NC}"
+                echo ""
+                sleep $interval
+                elapsed=$((elapsed + interval))
+            fi
+        else
+            # 没有 jq，简单等待
+            echo "  (安装 jq 以查看详细进度)"
+            sleep $interval
+            elapsed=$((elapsed + interval))
+
+            # 简单检查：所有端口都在监听
+            if check_port 8765 "TTS" 2>/dev/null && \
+               check_port 8766 "STT" 2>/dev/null && \
+               check_port 8767 "VAD" 2>/dev/null && \
+               check_port 8768 "SV" 2>/dev/null; then
+                all_ready=1
+            fi
+        fi
+    done
+
+    echo ""
+    echo "═══════════════════════════════════════════════════════════"
+
+    if [ $all_ready -eq 1 ]; then
+        echo -e "${GREEN}✓ 所有服务已就绪！${NC}"
+        echo ""
+
+        # 发送桌面通知 (如果可用)
+        if command -v notify-send &> /dev/null; then
+            notify-send "ClawBody" "所有服务已就绪" --icon=dialog-information 2>/dev/null || true
+        fi
+
+        return 0
+    else
+        echo -e "${RED}✗ 部分服务未能在 ${timeout}s 内就绪${NC}"
+        echo ""
+        echo "运行 '$0 --check' 查看详细诊断信息"
+        return 1
+    fi
+}
+
 # 主逻辑
 main() {
     local action="start"
@@ -413,6 +527,10 @@ main() {
                 ;;
             --check)
                 action="check"
+                shift
+                ;;
+            --wait)
+                action="wait"
                 shift
                 ;;
             --attach|-a)
@@ -477,6 +595,9 @@ main() {
             ;;
         check)
             run_diagnostics
+            ;;
+        wait)
+            wait_for_ready
             ;;
         attach)
             if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
