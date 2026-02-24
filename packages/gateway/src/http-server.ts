@@ -488,8 +488,8 @@ export class HttpServer {
 
       try {
         const motionGroup = this.persona?.motions[action] ?? action;
-        // Use specified index, or random within valid range (0-2 for most groups)
-        const motionIndex = index ?? Math.floor(Math.random() * 3);
+        // Use specified index, or 0 if not specified (let Live2D handle random internally)
+        const motionIndex = index ?? 0;
         await live2d.execute('motion', { group: motionGroup, index: motionIndex });
         send(res, 200, { ok: true, action, motion: motionGroup, index: motionIndex });
       } catch (err) {
@@ -842,14 +842,16 @@ export class HttpServer {
       }
 
       try {
-        const result = await vad.execute('updateConfig', {
+        await vad.execute('updateConfig', {
           provider,
           threshold,
           minSpeechDurationMs,
           minSilenceDurationMs,
           speechPadMs,
         });
-        send(res, 200, result as object);
+        // Return updated config
+        const config = await vad.execute('getConfig', { provider });
+        send(res, 200, config as object);
       } catch (err) {
         logger.error(MOD, 'vad/config update failed', err);
         send(res, 500, { error: 'Failed to update VAD config' });
@@ -984,8 +986,10 @@ export class HttpServer {
       }
 
       try {
-        const result = await sv.execute('updateConfig', { provider, threshold, applyVAD });
-        send(res, 200, result as object);
+        await sv.execute('updateConfig', { provider, threshold, applyVAD });
+        // Return updated config
+        const config = await sv.execute('getConfig', { provider });
+        send(res, 200, config as object);
       } catch (err) {
         logger.error(MOD, 'sv/config update failed', err);
         send(res, 500, { error: 'Failed to update SV config' });
