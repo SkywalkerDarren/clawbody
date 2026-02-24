@@ -4,6 +4,7 @@ import { pipelineModule } from './pipeline'
 import { servicesModule } from './services'
 import { speakersModule } from './speakers'
 import { ttsModule } from './tts'
+import { openclawModule } from './openclaw'
 import { eventsModule } from './events'
 
 export const modules: IModule[] = [
@@ -11,6 +12,7 @@ export const modules: IModule[] = [
   servicesModule,
   speakersModule,
   ttsModule,
+  openclawModule,
   eventsModule,
 ]
 
