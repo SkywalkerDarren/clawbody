@@ -1,5 +1,5 @@
-import type { IModule } from '@/core/module'
-import { STTTestCard } from './STTTestCard'
+import type { IModule } from '@/core/module';
+import { STTTestCard } from './STTTestCard';
 
 export const sttTestModule: IModule = {
   meta: {
@@ -10,4 +10,4 @@ export const sttTestModule: IModule = {
     category: 'test',
   },
   Component: STTTestCard,
-}
+};

@@ -1,5 +1,5 @@
-import type { IModule } from '@/core/module'
-import { OpenClawCard } from './OpenClawCard'
+import type { IModule } from '@/core/module';
+import { OpenClawCard } from './OpenClawCard';
 
 export const openclawModule: IModule = {
   meta: {
@@ -10,4 +10,4 @@ export const openclawModule: IModule = {
     category: 'monitor',
   },
   Component: OpenClawCard,
-}
+};

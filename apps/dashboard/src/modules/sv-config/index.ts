@@ -1,5 +1,5 @@
-import type { IModule } from '@/core/module'
-import { SVConfigCard } from './SVConfigCard'
+import type { IModule } from '@/core/module';
+import { SVConfigCard } from './SVConfigCard';
 
 export const svConfigModule: IModule = {
   meta: {
@@ -10,4 +10,4 @@ export const svConfigModule: IModule = {
     category: 'settings',
   },
   Component: SVConfigCard,
-}
+};

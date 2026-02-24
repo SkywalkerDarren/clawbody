@@ -1,13 +1,13 @@
-import { create } from 'zustand'
-import type { IModule, ModuleMeta } from './types'
+import { create } from 'zustand';
+import type { IModule, ModuleMeta } from './types';
 
 interface ModuleRegistryState {
-  modules: Map<string, IModule>
-  register: (module: IModule) => void
-  unregister: (id: string) => boolean
-  get: (id: string) => IModule | undefined
-  getAll: () => IModule[]
-  getAllMeta: () => ModuleMeta[]
+  modules: Map<string, IModule>;
+  register: (module: IModule) => void;
+  unregister: (id: string) => boolean;
+  get: (id: string) => IModule | undefined;
+  getAll: () => IModule[];
+  getAllMeta: () => ModuleMeta[];
 }
 
 export const useModuleRegistry = create<ModuleRegistryState>((set, get) => ({
@@ -15,35 +15,36 @@ export const useModuleRegistry = create<ModuleRegistryState>((set, get) => ({
 
   register: (module) => {
     set((state) => {
-      const newModules = new Map(state.modules)
+      const newModules = new Map(state.modules);
       if (newModules.has(module.meta.id)) {
-        console.warn(`Module already registered: ${module.meta.id}`)
-        return state
+        console.warn(`Module already registered: ${module.meta.id}`);
+        return state;
       }
-      newModules.set(module.meta.id, module)
-      return { modules: newModules }
-    })
+      newModules.set(module.meta.id, module);
+      return { modules: newModules };
+    });
   },
 
   unregister: (id) => {
-    const module = get().modules.get(id)
-    if (!module) return false
+    const module = get().modules.get(id);
+    if (!module) return false;
 
-    module.cleanup?.()
+    module.cleanup?.();
     set((state) => {
-      const newModules = new Map(state.modules)
-      newModules.delete(id)
-      return { modules: newModules }
-    })
-    return true
+      const newModules = new Map(state.modules);
+      newModules.delete(id);
+      return { modules: newModules };
+    });
+    return true;
   },
 
   get: (id) => get().modules.get(id),
 
   getAll: () =>
-    Array.from(get().modules.values()).sort(
-      (a, b) => (a.meta.order ?? 99) - (b.meta.order ?? 99)
-    ),
+    Array.from(get().modules.values()).sort((a, b) => (a.meta.order ?? 99) - (b.meta.order ?? 99)),
 
-  getAllMeta: () => get().getAll().map((m) => m.meta),
-}))
+  getAllMeta: () =>
+    get()
+      .getAll()
+      .map((m) => m.meta),
+}));

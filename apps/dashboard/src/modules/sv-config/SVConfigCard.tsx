@@ -1,46 +1,34 @@
-import { useEffect, useState } from 'react'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { useGatewayStore } from '@/core/store'
-import { apiGet, apiPost } from '@/core/api'
-
-interface SVConfig {
-  threshold: number
-  applyVAD: boolean
-}
+import { useState } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useGatewayStore } from '@/core/store';
+import { useSVConfig, useUpdateSVConfig } from '@/core/hooks';
+import type { SVConfig } from '@/core/schemas';
 
 export function SVConfigCard() {
-  const [config, setConfig] = useState<SVConfig | null>(null)
-  const [loading, setLoading] = useState(false)
-  const { addLog } = useGatewayStore()
+  const { addLog } = useGatewayStore();
+  const { data: serverConfig, isLoading } = useSVConfig();
+  const updateMutation = useUpdateSVConfig();
 
-  const fetchConfig = async () => {
-    const result = await apiGet<SVConfig>('/sv/config')
-    if (result.success && result.data) {
-      setConfig(result.data)
-    }
-  }
+  const [localOverrides, setLocalOverrides] = useState<Partial<SVConfig>>({});
 
-  const updateConfig = async () => {
-    if (!config) return
-    setLoading(true)
-    const result = await apiPost('/sv/config', config)
-    setLoading(false)
-    if (result.success) {
-      addLog('info', 'SV 配置已更新')
-    } else {
-      addLog('error', `更新失败: ${result.error}`)
-    }
-  }
+  const config = serverConfig ? { ...serverConfig, ...localOverrides } : null;
 
-  useEffect(() => {
-    fetchConfig()
-  }, [])
+  const handleSave = () => {
+    if (!config) return;
+    updateMutation.mutate(config, {
+      onSuccess: () => {
+        addLog('info', 'SV 配置已更新');
+        setLocalOverrides({});
+      },
+      onError: (err) => addLog('error', `更新失败: ${err.message}`),
+    });
+  };
 
-  if (!config) {
+  if (isLoading || !config) {
     return (
-      <Card>
+      <Card data-testid="sv-config-card">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">🔐 SV 配置</CardTitle>
         </CardHeader>
@@ -48,11 +36,11 @@ export function SVConfigCard() {
           <p className="text-sm text-muted-foreground">加载中...</p>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   return (
-    <Card>
+    <Card data-testid="sv-config-card">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">🔐 SV 配置</CardTitle>
       </CardHeader>
@@ -62,28 +50,34 @@ export function SVConfigCard() {
             验证阈值 (0-1): {config.threshold.toFixed(2)}
           </label>
           <input
+            data-testid="sv-threshold-slider"
             type="range"
             min="0"
             max="1"
             step="0.05"
             value={config.threshold}
             onChange={(e) =>
-              setConfig({ ...config, threshold: parseFloat(e.target.value) })
+              setLocalOverrides((prev) => ({
+                ...prev,
+                threshold: parseFloat(e.target.value),
+              }))
             }
             className="w-full"
           />
-          <p className="text-xs text-muted-foreground">
-            越高越严格，建议 0.5-0.7
-          </p>
+          <p className="text-xs text-muted-foreground">越高越严格，建议 0.5-0.7</p>
         </div>
 
         <div className="flex items-center gap-2">
           <input
+            data-testid="sv-apply-vad-checkbox"
             type="checkbox"
             id="applyVAD"
             checked={config.applyVAD}
             onChange={(e) =>
-              setConfig({ ...config, applyVAD: e.target.checked })
+              setLocalOverrides((prev) => ({
+                ...prev,
+                applyVAD: e.target.checked,
+              }))
             }
             className="rounded"
           />
@@ -95,10 +89,15 @@ export function SVConfigCard() {
           </Badge>
         </div>
 
-        <Button size="sm" onClick={updateConfig} disabled={loading}>
+        <Button
+          data-testid="sv-save-btn"
+          size="sm"
+          onClick={handleSave}
+          disabled={updateMutation.isPending}
+        >
           保存配置
         </Button>
       </CardContent>
     </Card>
-  )
+  );
 }

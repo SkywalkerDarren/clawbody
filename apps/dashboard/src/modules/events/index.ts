@@ -1,5 +1,5 @@
-import type { IModule } from '@/core/module'
-import { EventsCard } from './EventsCard'
+import type { IModule } from '@/core/module';
+import { EventsCard } from './EventsCard';
 
 export const eventsModule: IModule = {
   meta: {
@@ -10,4 +10,4 @@ export const eventsModule: IModule = {
     category: 'monitor',
   },
   Component: EventsCard,
-}
+};

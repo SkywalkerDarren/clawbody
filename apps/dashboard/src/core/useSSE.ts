@@ -1,56 +1,81 @@
-import { useCallback, useEffect, useRef } from 'react'
-import { useGatewayStore } from './store'
+import { useCallback, useEffect, useRef } from 'react';
+import { useGatewayStore } from './store';
 
 export function useSSE(url: string) {
-  const esRef = useRef<EventSource | null>(null)
-  const { setSseConnected, setPipelineEnabled, addLog } = useGatewayStore()
+  const esRef = useRef<EventSource | null>(null);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const { setSseConnected, setPipelineEnabled, addLog } = useGatewayStore();
 
   const connect = useCallback(() => {
     if (esRef.current) {
-      esRef.current.close()
+      esRef.current.close();
     }
 
-    const es = new EventSource(url)
-    esRef.current = es
+    const es = new EventSource(url);
+    esRef.current = es;
 
     es.onopen = () => {
-      setSseConnected(true)
-      addLog('info', 'SSE 已连接')
-    }
+      setSseConnected(true);
+      addLog('info', 'SSE 已连接');
+    };
 
     es.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data)
-        if (data.type === 'hello') return
-
-        // Handle pipeline status updates
-        if (data.type === 'pipeline_status') {
-          setPipelineEnabled(data.enabled)
+        const data: unknown = JSON.parse(event.data);
+        if (typeof data === 'object' && data !== null && 'type' in data && data.type === 'hello') {
+          return;
         }
 
-        addLog('info', `Event: ${JSON.stringify(data).slice(0, 60)}`)
+        if (
+          typeof data === 'object' &&
+          data !== null &&
+          'type' in data &&
+          data.type === 'pipeline_status' &&
+          'enabled' in data &&
+          typeof data.enabled === 'boolean'
+        ) {
+          setPipelineEnabled(data.enabled);
+        }
+
+        addLog('info', `Event: ${JSON.stringify(data).slice(0, 60)}`);
       } catch {
         // Ignore parse errors
       }
-    }
+    };
 
     es.onerror = () => {
-      setSseConnected(false)
-      es.close()
-      // Reconnect after 3s
-      setTimeout(connect, 3000)
-    }
-  }, [url, setSseConnected, setPipelineEnabled, addLog])
+      setSseConnected(false);
+      es.close();
+    };
+  }, [url, setSseConnected, setPipelineEnabled, addLog]);
 
   useEffect(() => {
-    connect()
-    return () => {
-      esRef.current?.close()
+    const handleError = () => {
+      reconnectTimeoutRef.current = window.setTimeout(() => {
+        connect();
+      }, 3000);
+    };
+
+    connect();
+
+    const es = esRef.current;
+    if (es) {
+      es.addEventListener('error', handleError);
     }
-  }, [connect])
+
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (es) {
+        es.removeEventListener('error', handleError);
+      }
+      esRef.current?.close();
+    };
+  }, [connect]);
 
   return {
     reconnect: connect,
     close: () => esRef.current?.close(),
-  }
+  };
 }

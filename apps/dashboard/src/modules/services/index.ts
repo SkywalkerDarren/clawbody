@@ -1,5 +1,5 @@
-import type { IModule } from '@/core/module'
-import { ServicesCard } from './ServicesCard'
+import type { IModule } from '@/core/module';
+import { ServicesCard } from './ServicesCard';
 
 export const servicesModule: IModule = {
   meta: {
@@ -10,4 +10,4 @@ export const servicesModule: IModule = {
     category: 'monitor',
   },
   Component: ServicesCard,
-}
+};

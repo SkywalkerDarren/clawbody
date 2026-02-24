@@ -1,17 +1,17 @@
-import type { IModule } from '@/core/module'
+import type { IModule } from '@/core/module';
 
-import { pipelineModule } from './pipeline'
-import { servicesModule } from './services'
-import { speakersModule } from './speakers'
-import { ttsModule } from './tts'
-import { sttTestModule } from './stt-test'
-import { live2dModule } from './live2d'
-import { visionModule } from './vision'
-import { openclawModule } from './openclaw'
-import { actionsModule } from './actions'
-import { vadConfigModule } from './vad-config'
-import { svConfigModule } from './sv-config'
-import { eventsModule } from './events'
+import { pipelineModule } from './pipeline';
+import { servicesModule } from './services';
+import { speakersModule } from './speakers';
+import { ttsModule } from './tts';
+import { sttTestModule } from './stt-test';
+import { live2dModule } from './live2d';
+import { visionModule } from './vision';
+import { openclawModule } from './openclaw';
+import { actionsModule } from './actions';
+import { vadConfigModule } from './vad-config';
+import { svConfigModule } from './sv-config';
+import { eventsModule } from './events';
 
 export const modules: IModule[] = [
   pipelineModule,
@@ -26,18 +26,18 @@ export const modules: IModule[] = [
   vadConfigModule,
   svConfigModule,
   eventsModule,
-]
+];
 
 export function getModulesByCategory() {
-  const grouped: Record<string, IModule[]> = {}
+  const grouped: Record<string, IModule[]> = {};
 
   for (const module of modules) {
-    const category = module.meta.category ?? 'other'
+    const category = module.meta.category ?? 'other';
     if (!grouped[category]) {
-      grouped[category] = []
+      grouped[category] = [];
     }
-    grouped[category].push(module)
+    grouped[category].push(module);
   }
 
-  return grouped
+  return grouped;
 }

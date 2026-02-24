@@ -1,5 +1,5 @@
-import type { IModule } from '@/core/module'
-import { Live2DCard } from './Live2DCard'
+import type { IModule } from '@/core/module';
+import { Live2DCard } from './Live2DCard';
 
 export const live2dModule: IModule = {
   meta: {
@@ -10,4 +10,4 @@ export const live2dModule: IModule = {
     category: 'test',
   },
   Component: Live2DCard,
-}
+};

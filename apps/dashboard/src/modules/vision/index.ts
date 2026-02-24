@@ -1,5 +1,5 @@
-import type { IModule } from '@/core/module'
-import { VisionCard } from './VisionCard'
+import type { IModule } from '@/core/module';
+import { VisionCard } from './VisionCard';
 
 export const visionModule: IModule = {
   meta: {
@@ -10,4 +10,4 @@ export const visionModule: IModule = {
     category: 'test',
   },
   Component: VisionCard,
-}
+};

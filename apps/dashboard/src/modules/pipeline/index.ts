@@ -1,5 +1,5 @@
-import type { IModule } from '@/core/module'
-import { PipelineCard } from './PipelineCard'
+import type { IModule } from '@/core/module';
+import { PipelineCard } from './PipelineCard';
 
 export const pipelineModule: IModule = {
   meta: {
@@ -11,4 +11,4 @@ export const pipelineModule: IModule = {
     category: 'control',
   },
   Component: PipelineCard,
-}
+};

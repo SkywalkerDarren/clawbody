@@ -1,5 +1,5 @@
-import type { IModule } from '@/core/module'
-import { VADConfigCard } from './VADConfigCard'
+import type { IModule } from '@/core/module';
+import { VADConfigCard } from './VADConfigCard';
 
 export const vadConfigModule: IModule = {
   meta: {
@@ -10,4 +10,4 @@ export const vadConfigModule: IModule = {
     category: 'settings',
   },
   Component: VADConfigCard,
-}
+};

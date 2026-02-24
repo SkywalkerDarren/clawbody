@@ -1,10 +1,10 @@
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { useGatewayStore } from '@/core/store'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useGatewayStore } from '@/core/store';
 
 export function OpenClawCard() {
-  const { diagnostics } = useGatewayStore()
-  const openclaw = diagnostics?.openclaw
+  const { diagnostics } = useGatewayStore();
+  const openclaw = diagnostics?.openclaw;
 
   return (
     <Card>
@@ -33,5 +33,5 @@ export function OpenClawCard() {
         )}
       </CardContent>
     </Card>
-  )
+  );
 }

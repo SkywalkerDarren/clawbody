@@ -1,64 +1,67 @@
-import { useEffect, useState } from 'react'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { useGatewayStore, type DiagnosticsData } from '@/core/store'
-import { apiGet } from '@/core/api'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useDiagnostics } from '@/core/hooks';
 
 export function ServicesCard() {
-  const { diagnostics, setDiagnostics, addLog } = useGatewayStore()
-  const [loading, setLoading] = useState(false)
+  const { data: diagnostics, isLoading, refetch } = useDiagnostics();
 
-  const refresh = async () => {
-    setLoading(true)
-    const result = await apiGet<DiagnosticsData>('/diagnostics')
-    setLoading(false)
-    if (result.success && result.data) {
-      setDiagnostics(result.data)
-    } else {
-      addLog('error', `获取诊断失败: ${result.error}`)
+  const services = diagnostics?.services ?? {};
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'ok':
+        return { icon: '✓', className: 'text-green-500' };
+      case 'error':
+        return { icon: '✗', className: 'text-red-500' };
+      default:
+        return { icon: '○', className: 'text-yellow-500' };
     }
-  }
+  };
 
-  useEffect(() => {
-    refresh()
-    const interval = setInterval(refresh, 30000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const services = diagnostics?.services ?? {}
+  const getOverallVariant = (overall: string) => {
+    switch (overall) {
+      case 'ok':
+        return 'default' as const;
+      case 'degraded':
+        return 'secondary' as const;
+      default:
+        return 'destructive' as const;
+    }
+  };
 
   return (
-    <Card>
+    <Card data-testid="services-card">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium">📊 服务状态</CardTitle>
-        <Button size="sm" variant="ghost" onClick={refresh} disabled={loading}>
+        <Button
+          data-testid="services-refresh-btn"
+          size="sm"
+          variant="ghost"
+          onClick={() => refetch()}
+          disabled={isLoading}
+        >
           刷新
         </Button>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          {Object.entries(services).map(([name, info]) => (
-            <div key={name} className="flex items-center gap-2">
-              <span
-                className={
-                  info.status === 'ok'
-                    ? 'text-green-500'
-                    : info.status === 'error'
-                      ? 'text-red-500'
-                      : 'text-yellow-500'
-                }
+        <div data-testid="services-grid" className="grid grid-cols-2 gap-2 text-sm">
+          {Object.entries(services).map(([name, info]) => {
+            const { icon, className } = getStatusIcon(info.status);
+            return (
+              <div
+                key={name}
+                data-testid={`service-item-${name}`}
+                className="flex items-center gap-2"
               >
-                {info.status === 'ok' ? '✓' : info.status === 'error' ? '✗' : '○'}
-              </span>
-              <span className="truncate">{name}</span>
-              {info.latency && (
-                <span className="text-xs text-muted-foreground">
-                  {info.latency}ms
-                </span>
-              )}
-            </div>
-          ))}
+                <span className={className}>{icon}</span>
+                <span className="truncate">{name}</span>
+                {info.latency !== undefined && (
+                  <span className="text-xs text-muted-foreground">{info.latency}ms</span>
+                )}
+              </div>
+            );
+          })}
           {Object.keys(services).length === 0 && (
             <div className="text-muted-foreground col-span-2">加载中...</div>
           )}
@@ -67,13 +70,8 @@ export function ServicesCard() {
           <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
             Uptime: {diagnostics.gateway.uptime}s | Overall:{' '}
             <Badge
-              variant={
-                diagnostics.overall === 'ok'
-                  ? 'default'
-                  : diagnostics.overall === 'degraded'
-                    ? 'secondary'
-                    : 'destructive'
-              }
+              data-testid="services-overall-badge"
+              variant={getOverallVariant(diagnostics.overall)}
               className="text-xs"
             >
               {diagnostics.overall}
@@ -82,5 +80,5 @@ export function ServicesCard() {
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
