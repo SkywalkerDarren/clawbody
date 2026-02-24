@@ -40,6 +40,9 @@ function App() {
   const testModules = registeredModules.filter(
     (m) => m.meta.category === 'test'
   )
+  const settingsModules = registeredModules.filter(
+    (m) => m.meta.category === 'settings'
+  )
   const eventsModule = registeredModules.find((m) => m.meta.id === 'events')
 
   return (
@@ -81,6 +84,15 @@ function App() {
         {testModules.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             {testModules.map((module) => (
+              <module.Component key={module.meta.id} />
+            ))}
+          </div>
+        )}
+
+        {/* Settings modules - 2 columns */}
+        {settingsModules.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {settingsModules.map((module) => (
               <module.Component key={module.meta.id} />
             ))}
           </div>
