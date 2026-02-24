@@ -31,6 +31,23 @@ export function useEnrollSpeaker() {
   });
 }
 
+// Verify speaker schema
+const VerifyResponseSchema = z.object({
+  verified: z.boolean(),
+  speaker_id: z.string().nullable().optional(),
+  speaker_name: z.string().nullable().optional(),
+  confidence: z.number(),
+  threshold: z.number(),
+});
+
+export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
+
+export function useVerifySpeaker() {
+  return useMutation({
+    mutationFn: (audio: string) => apiPost('/sv/verify', VerifyResponseSchema, { audio }),
+  });
+}
+
 export function useDeleteSpeaker() {
   const queryClient = useQueryClient();
 

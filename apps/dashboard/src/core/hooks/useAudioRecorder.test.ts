@@ -60,6 +60,9 @@ describe('useAudioRecorder', () => {
     vi.stubGlobal('navigator', {
       mediaDevices: {
         getUserMedia: vi.fn().mockResolvedValue(mockStream),
+        enumerateDevices: vi.fn().mockResolvedValue([
+          { kind: 'audioinput', deviceId: 'default', label: 'Default Mic' },
+        ]),
       },
     });
   });
@@ -95,7 +98,10 @@ describe('useAudioRecorder', () => {
     const onError = vi.fn();
     const error = new Error('Permission denied');
 
-    vi.mocked(navigator.mediaDevices.getUserMedia).mockRejectedValueOnce(error);
+    // First call succeeds (for refreshDevices on mount), second call fails (for startRecording)
+    vi.mocked(navigator.mediaDevices.getUserMedia)
+      .mockResolvedValueOnce(mockStream)
+      .mockRejectedValueOnce(error);
 
     const { result } = renderHook(() =>
       useAudioRecorder({ onRecordingComplete, onError })
