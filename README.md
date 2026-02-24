@@ -3,11 +3,8 @@
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-%3E%3D9-F69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![gRPC](https://img.shields.io/badge/gRPC-Protocol-244c5a?logo=grpc&logoColor=white)](https://grpc.io/)
 
 The "body" component for [OpenClaw AI](https://github.com/openclaw) - providing physical interaction capabilities for a remote AI brain.
-
-[English](./README.md) | [中文](./README.zh.md)
 
 ## Overview
 
@@ -15,12 +12,13 @@ ClawBody gives your AI a physical presence. While the AI brain runs remotely, Cl
 
 | Body Part | Capability | Function |
 |-----------|------------|----------|
-| Eyes/Expression | Live2D | Desktop companion with expressions and motions |
-| Mouth | TTS | Text-to-speech synthesis (multi-provider) |
-| Ears | STT | Speech-to-text recognition (streaming supported) |
+| Face | Live2D | Desktop companion with expressions and lip-sync |
+| Mouth | TTS | Text-to-speech synthesis (Qwen3-TTS, Edge-TTS) |
+| Ears | STT | Speech-to-text recognition (Qwen3-ASR, streaming) |
+| Ears | VAD | Voice activity detection (Silero VAD) |
+| Voice ID | SV | Speaker verification (WeSpeaker) |
 | Eyes | Vision | Screen capture |
-| Hands | Executor | Script execution (planned) |
-| Nervous System | Gateway | Brain-Body gRPC communication |
+| Nervous System | Gateway | Brain-Body communication |
 
 ## Architecture
 
@@ -30,108 +28,137 @@ ClawBody gives your AI a physical presence. While the AI brain runs remotely, Cl
 │                    (Remote Device / Cloud)                      │
 └─────────────────────────────────────────────────────────────────┘
                               │
-                              │ gRPC (Nervous System)
+                              │ HTTP Webhook
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      ClawBody Gateway                           │
-│              (Capability Registry + Routing + State)            │
+│              (Capability Registry + Pipeline + State)           │
 ├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │  Live2D  │  │   TTS    │  │   STT    │  │  Vision  │  ...   │
-│  │  (Face)  │  │ (Mouth)  │  │  (Ears)  │  │  (Eyes)  │        │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
-│       │              │              │              │            │
-│       ▼              ▼              ▼              ▼            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │ Electron │  │Qwen/Edge │  │Qwen3-ASR │  │  Screen  │        │
-│  │ + PIXI   │  │   TTS    │  │          │  │ Capture  │        │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
+│                                                                 │
+│   麦克风 → VAD → SV → STT → OpenClaw → TTS → Live2D (lip-sync) │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐       │
+│  │ Live2D │ │  TTS   │ │  STT   │ │  VAD   │ │   SV   │       │
+│  │ (Face) │ │(Mouth) │ │ (Ears) │ │ (Ears) │ │(Voice) │       │
+│  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘       │
+│      │          │          │          │          │             │
+│      ▼          ▼          ▼          ▼          ▼             │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐       │
+│  │Electron│ │ Qwen3  │ │ Qwen3  │ │ Silero │ │WeSpeaker│      │
+│  │+ PIXI  │ │  TTS   │ │  ASR   │ │  VAD   │ │  ONNX  │       │
+│  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Features
 
-- **Live2D Desktop Companion** - Animated character with expressions and motions via PIXI.js
-- **Multi-Provider TTS** - Support for Qwen3-TTS (local GPU), Edge-TTS (cloud), and more
-- **Speech-to-Text (STT)** - Real-time streaming transcription with Qwen3-ASR
-- **Screen Capture** - Vision capability for AI to "see" the screen
-- **gRPC Communication** - Low-latency, bidirectional streaming between Brain and Body
-- **mDNS Discovery** - Automatic service discovery on local network
-- **Plugin Architecture** - Extensible capability system with standardized interfaces
-- **HTTP Compatibility** - REST API and SSE for browser integration
+- **Voice Pipeline** - VAD → Speaker Verification → STT → AI → TTS (hands-free)
+- **Speaker Verification** - Only respond to registered voices (WeSpeaker ONNX)
+- **Live2D Desktop Companion** - Animated character with expressions and lip-sync
+- **Multi-Provider TTS** - Qwen3-TTS (local GPU), Edge-TTS (cloud)
+- **Streaming STT** - Real-time transcription with Qwen3-ASR
+- **Web Dashboard** - Monitor and control at http://localhost:4000/dashboard.html
+- **HTTP/WebSocket/SSE** - REST API and real-time events
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js >= 20
-- pnpm >= 9
-- Python >= 3.12 (for Qwen TTS)
+- Node.js >= 20, pnpm >= 9
+- Python >= 3.12, uv
+- CUDA GPU (for Qwen TTS/STT/SV models)
+- tmux (for start script)
 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/openclaw/clawbody.git
+git clone https://github.com/SkywalkerDarren/clawbody.git
 cd clawbody
 
-# Install dependencies
+# Install Node.js dependencies
 pnpm install
-
-# Generate protobuf code
-pnpm proto:gen
-
-# Build all packages
 pnpm build
+
+# Install Python services
+cd services/qwen3-tts && uv sync && cd ../..
+cd services/qwen3-stt && uv sync && cd ../..
+cd services/silero-vad && uv sync && cd ../..
+cd services/wespeaker-sv && uv sync && cd ../..
 ```
 
 ### Running
 
 ```bash
-# Terminal 1: Start Gateway (gRPC:50051, HTTP:4000)
-pnpm --filter @clawbody/gateway dev
+# Start all services (tmux)
+./scripts/start.sh
 
-# Terminal 2: Start Desktop (Live2D widget)
-pnpm --filter @clawbody/desktop start
+# Wait for services to be ready
+./scripts/start.sh --wait
 
-# Terminal 3 (optional): Start Qwen TTS service
-cd services/qwen3-tts
-uv sync
-./start.sh
+# Check service status
+./scripts/start.sh --check
 
-# Terminal 4 (optional): Start Qwen STT service
-cd services/qwen3-stt
-uv sync
-./start.sh
+# Stop all services
+./scripts/start.sh --stop
 ```
 
-## Development
-
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| `pnpm install` | Install all dependencies |
-| `pnpm build` | Build all packages |
-| `pnpm dev` | Start development mode |
-| `pnpm test` | Run all tests |
-| `pnpm test:coverage` | Run tests with coverage |
-| `pnpm lint` | ESLint check |
-| `pnpm typecheck` | TypeScript type check |
-| `pnpm format` | Format code with Prettier |
-| `pnpm proto:gen` | Generate protobuf code |
-
-### Single Package Commands
+### Register Your Voice
 
 ```bash
-# Build specific package
-pnpm --filter @clawbody/core build
+# Register speaker for voice verification
+uv run --with sounddevice --with numpy --with httpx python scripts/enroll_speaker.py
+```
 
-# Run tests for specific package
-pnpm --filter @clawbody/gateway test
+### Test Voice Pipeline
 
-# Start specific service in dev mode
-pnpm --filter @clawbody/desktop start
+```bash
+# Test full pipeline: VAD → SV → STT → OpenClaw → TTS
+uv run --with sounddevice --with numpy --with httpx python scripts/test_vad_pipeline.py
+```
+
+## Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Gateway | 4000 | HTTP/WS/SSE API |
+| gRPC | 50051 | gRPC server |
+| TTS | 8765 | Qwen3-TTS |
+| STT | 8766 | Qwen3-ASR |
+| VAD | 8767 | Silero VAD |
+| SV | 8768 | WeSpeaker SV |
+
+## Dashboard
+
+Access the web dashboard at: http://localhost:4000/dashboard.html
+
+Features:
+- Pipeline enable/disable control
+- Service status monitoring
+- Speaker management
+- TTS testing
+- Real-time event log
+
+## Configuration
+
+Copy `config/default.yaml` to `config/local.yaml` and customize:
+
+```yaml
+# OpenClaw integration
+openclaw:
+  webhookUrl: "http://localhost:18789"
+  sessionKey: "voice:default"
+
+# Capabilities
+capabilities:
+  tts:
+    providers:
+      qwen:
+        baseUrl: "http://localhost:8765"
+  stt:
+    providers:
+      qwen:
+        baseUrl: "http://localhost:8766"
 ```
 
 ## Project Structure
@@ -139,55 +166,58 @@ pnpm --filter @clawbody/desktop start
 ```
 clawbody/
 ├── packages/
-│   ├── core/           # Core library: interfaces, registry, state, logging
-│   ├── gateway/        # Gateway: gRPC + HTTP/WS/SSE server, routing, mDNS
-│   └── proto-gen/      # Generated protobuf code
+│   ├── core/              # Core library
+│   └── gateway/           # Gateway server
 ├── capabilities/
-│   ├── live2d/         # Live2D capability (expressions, motions)
-│   ├── tts/            # TTS capability (multi-provider)
-│   ├── stt/            # STT capability (speech recognition)
-│   └── vision/         # Vision capability (screen capture)
-├── apps/
-│   └── desktop/        # Electron desktop widget
+│   ├── live2d/            # Live2D capability
+│   ├── tts/               # TTS capability
+│   ├── stt/               # STT capability
+│   ├── vad/               # VAD capability
+│   └── speaker-verification/  # SV capability
 ├── services/
-│   ├── qwen3-tts/      # Qwen TTS Python service
-│   └── qwen3-stt/      # Qwen STT Python service
-├── proto/              # Protocol Buffers definitions
-├── config/             # Configuration files (YAML)
-└── docs/               # Documentation
+│   ├── qwen3-tts/         # Qwen TTS (Python)
+│   ├── qwen3-stt/         # Qwen STT (Python)
+│   ├── silero-vad/        # Silero VAD (Python)
+│   └── wespeaker-sv/      # WeSpeaker SV (Python)
+├── apps/
+│   └── desktop/           # Electron desktop
+├── scripts/
+│   ├── start.sh           # Service management
+│   ├── enroll_speaker.py  # Voice registration
+│   └── test_vad_pipeline.py  # Pipeline test
+└── config/                # Configuration
 ```
 
-## TTS Providers
+## API Reference
 
-| Provider | Type | Features |
-|----------|------|----------|
-| Qwen3-TTS | Local GPU | High-quality Chinese, requires GPU |
-| Edge-TTS | Cloud (Free) | Microsoft voices, no GPU needed |
-| Coqui TTS | Local OSS | Multi-language, offline capable |
-| OpenAI TTS | Cloud (Paid) | High quality, requires API key |
+### Pipeline Control
 
-## STT Providers
+```bash
+# Get pipeline status
+curl http://localhost:4000/api/pipeline
 
-| Provider | Type | Features |
-|----------|------|----------|
-| Qwen3-ASR | Local GPU | High-quality Chinese/English, streaming support |
-| Whisper | Local | Multi-language, offline capable (planned) |
-| Azure Speech | Cloud (Paid) | High accuracy, requires API key (planned) |
+# Enable pipeline
+curl -X POST http://localhost:4000/api/pipeline/enable
 
-## Documentation
+# Disable pipeline
+curl -X POST http://localhost:4000/api/pipeline/disable
+```
 
-- [Architecture](docs/ARCHITECTURE.md) - System design and components
-- [Protocol](docs/PROTOCOL.md) - gRPC communication protocol
-- [API Reference](docs/API.md) - API documentation
-- [Development Guide](docs/DEVELOPMENT.md) - Development setup and workflow
-- [Deployment](docs/DEPLOYMENT.md) - Deployment instructions
-- [Roadmap](docs/ROADMAP.md) - Product roadmap
+### Diagnostics
 
-## Contributing
+```bash
+# Get service diagnostics
+curl http://localhost:4000/api/diagnostics
+```
 
-1. Read the [Development Guide](docs/DEVELOPMENT.md)
-2. Open an issue to discuss new features
-3. Submit a PR with tests
+### TTS
+
+```bash
+# Speak text
+curl -X POST http://localhost:4000/api/speak \
+  -H "Content-Type: application/json" \
+  -d '{"text": "你好世界"}'
+```
 
 ## License
 
