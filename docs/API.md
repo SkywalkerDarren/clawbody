@@ -2,471 +2,482 @@
 
 ## 概述
 
-ClawBody 提供两种 API 访问方式：
-- gRPC (推荐): 低延迟、类型安全、支持流式
-- HTTP REST: 向后兼容、易于调试
+ClawBody Gateway 提供 HTTP REST API，端口默认 4000。
 
-## 能力 API
+基础 URL: `http://localhost:4000/api`
 
-### TTS 能力 (`tts`)
+## 系统 API
 
-#### speak - 语音合成并播放
+### GET /health - 健康检查
 
-将文本转换为语音并立即播放。
+```bash
+curl http://localhost:4000/api/health
+```
 
-**输入参数:**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| text | string | ✓ | 要合成的文本 |
-| voice | string | | 声音名称 |
-| provider | string | | TTS 提供商 (qwen/edge/coqui/openai) |
-| speed | number | | 语速 (0.5-2.0，默认 1.0) |
-
-**输出:**
-
+响应:
 ```json
 {
-  "duration": 3.5,
-  "provider": "qwen"
+  "ok": true,
+  "uptime": 3600,
+  "wsClients": 1,
+  "sseClients": 2
 }
 ```
 
-**示例 (gRPC):**
+### GET /diagnostics - 全面诊断
 
-```typescript
-const response = await client.execute({
-  capabilityId: 'tts',
-  operation: 'speak',
-  input: JSON.stringify({
-    text: '你好，我是 OpenClaw',
-    voice: 'Vivian',
-    provider: 'qwen'
-  })
-});
-```
-
-**示例 (HTTP):**
+检测所有服务状态。
 
 ```bash
-curl -X POST http://localhost:3000/api/execute \
-  -H "Content-Type: application/json" \
-  -H "X-Api-Key: your-api-key" \
-  -d '{
-    "capability_id": "tts",
-    "operation": "speak",
-    "input": {
-      "text": "你好，我是 OpenClaw",
-      "voice": "Vivian"
-    }
-  }'
+curl http://localhost:4000/api/diagnostics
 ```
 
-#### synthesize - 合成语音 (不播放)
+响应:
+```json
+{
+  "gateway": { "status": "ok", "uptime": 3600 },
+  "services": {
+    "tts": { "status": "ok", "latency": 15 },
+    "stt": { "status": "ok", "latency": 20 },
+    "vad": { "status": "ok", "latency": 5 },
+    "speaker-verification": { "status": "ok", "latency": 10 },
+    "vision": { "status": "ok", "latency": 50 },
+    "live2d": { "status": "ok", "latency": 2 }
+  },
+  "openclaw": { "status": "ok", "message": "Connected to http://localhost:18789" },
+  "overall": "ok"
+}
+```
 
-合成语音并返回音频数据。
+### GET /capabilities - 能力列表
 
-**输入参数:**
+```bash
+curl http://localhost:4000/api/capabilities
+```
 
+### GET /persona - 角色配置
+
+```bash
+curl http://localhost:4000/api/persona
+```
+
+---
+
+## Pipeline API
+
+控制 VAD → SV → STT → OpenClaw 语音链路。
+
+### GET /pipeline - 获取状态
+
+```bash
+curl http://localhost:4000/api/pipeline
+```
+
+响应:
+```json
+{
+  "enabled": false,
+  "description": "VAD → SV → STT → OpenClaw pipeline"
+}
+```
+
+### POST /pipeline/enable - 启用链路
+
+```bash
+curl -X POST http://localhost:4000/api/pipeline/enable
+```
+
+### POST /pipeline/disable - 禁用链路
+
+```bash
+curl -X POST http://localhost:4000/api/pipeline/disable
+```
+
+---
+
+## TTS API
+
+### POST /speak - 语音合成并播放
+
+```bash
+curl -X POST http://localhost:4000/api/speak \
+  -H "Content-Type: application/json" \
+  -d '{"text": "你好世界", "emotion": "happy"}'
+```
+
+参数:
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | text | string | ✓ | 要合成的文本 |
-| voice | string | | 声音名称 |
-| provider | string | | TTS 提供商 |
-| format | string | | 音频格式 (wav/mp3/opus) |
+| emotion | string | | 情感 (用于 Live2D 表情) |
 
-**输出:**
-
+响应:
 ```json
 {
-  "audio": "base64-encoded-audio-data",
-  "format": "wav",
-  "sampleRate": 24000,
+  "ok": true,
+  "timings": {
+    "expression_ms": 5,
+    "motion_ms": 3,
+    "tts_ms": 850
+  }
+}
+```
+
+### POST /speak/stream - 流式语音合成
+
+```bash
+curl -X POST http://localhost:4000/api/speak/stream \
+  -H "Content-Type: application/json" \
+  -d '{"text": "你好世界"}'
+```
+
+音频通过 SSE 事件 `audio_chunk` 推送。
+
+---
+
+## STT API
+
+### POST /listen - 简化转录
+
+```bash
+curl -X POST http://localhost:4000/api/listen \
+  -H "Content-Type: application/json" \
+  -d '{"audio": "<base64 PCM>", "language": "auto"}'
+```
+
+响应:
+```json
+{
+  "ok": true,
+  "text": "识别出的文本",
+  "language": "zh",
   "duration": 3.5
 }
 ```
 
-#### listVoices - 列出可用声音
+### POST /stt/transcribe - 完整转录
 
-**输入参数:**
+```bash
+curl -X POST http://localhost:4000/api/stt/transcribe \
+  -H "Content-Type: application/json" \
+  -d '{
+    "audio": "<base64>",
+    "language": "auto",
+    "enableTimestamps": true
+  }'
+```
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| provider | string | | 指定提供商，不填则返回所有 |
+### POST /stt/sessions - 创建流式会话
 
-**输出:**
+```bash
+curl -X POST http://localhost:4000/api/stt/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"language": "auto"}'
+```
 
+响应:
+```json
+{
+  "sessionId": "sess_abc123",
+  "state": "idle",
+  "wsUrl": "/api/stt/sessions/sess_abc123/stream"
+}
+```
+
+### POST /stt/sessions/:id/chunks - 发送音频块
+
+```bash
+curl -X POST http://localhost:4000/api/stt/sessions/sess_abc123/chunks \
+  -H "Content-Type: application/json" \
+  -d '{"audio": "<base64 PCM>"}'
+```
+
+### POST /stt/sessions/:id/end - 结束会话
+
+```bash
+curl -X POST http://localhost:4000/api/stt/sessions/sess_abc123/end
+```
+
+### DELETE /stt/sessions/:id - 取消会话
+
+```bash
+curl -X DELETE http://localhost:4000/api/stt/sessions/sess_abc123
+```
+
+### GET /stt/languages - 支持的语言
+
+```bash
+curl http://localhost:4000/api/stt/languages
+```
+
+---
+
+## VAD API
+
+### POST /vad/process - 处理音频块
+
+```bash
+curl -X POST http://localhost:4000/api/vad/process \
+  -H "Content-Type: application/json" \
+  -d '{"audio": "<base64 PCM>"}'
+```
+
+响应:
+```json
+{
+  "isSpeech": true,
+  "confidence": 0.95,
+  "event": "speech_start"
+}
+```
+
+事件类型:
+- `speech_start` - 检测到语音开始
+- `speech_end` - 语音结束
+- `speech_end_with_audio` - 语音结束，附带完整音频
+
+### POST /vad/reset - 重置状态
+
+```bash
+curl -X POST http://localhost:4000/api/vad/reset
+```
+
+### GET /vad/config - 获取配置
+
+```bash
+curl http://localhost:4000/api/vad/config
+```
+
+响应:
+```json
+{
+  "threshold": 0.5,
+  "minSpeechDurationMs": 250,
+  "minSilenceDurationMs": 300,
+  "speechPadMs": 30
+}
+```
+
+### POST /vad/config - 更新配置
+
+```bash
+curl -X POST http://localhost:4000/api/vad/config \
+  -H "Content-Type: application/json" \
+  -d '{
+    "threshold": 0.4,
+    "minSpeechDurationMs": 200
+  }'
+```
+
+---
+
+## Speaker Verification API
+
+### POST /sv/enroll - 注册说话人
+
+```bash
+curl -X POST http://localhost:4000/api/sv/enroll \
+  -H "Content-Type: application/json" \
+  -d '{
+    "speakerId": "user001",
+    "speakerName": "张三",
+    "audio": "<base64 PCM>"
+  }'
+```
+
+响应:
+```json
+{
+  "success": true,
+  "speaker_id": "user001",
+  "speaker_name": "张三",
+  "embedding_count": 1
+}
+```
+
+### POST /sv/verify - 验证说话人
+
+```bash
+curl -X POST http://localhost:4000/api/sv/verify \
+  -H "Content-Type: application/json" \
+  -d '{"audio": "<base64 PCM>"}'
+```
+
+响应:
+```json
+{
+  "verified": true,
+  "speaker_id": "user001",
+  "speaker_name": "张三",
+  "confidence": 0.85,
+  "threshold": 0.6
+}
+```
+
+### GET /sv/speakers - 列出说话人
+
+```bash
+curl http://localhost:4000/api/sv/speakers
+```
+
+响应:
 ```json
 [
   {
-    "id": "Vivian",
-    "name": "Vivian",
-    "language": "en",
-    "gender": "female",
-    "provider": "qwen"
-  },
-  {
-    "id": "zh-CN-XiaoxiaoNeural",
-    "name": "晓晓",
-    "language": "zh-CN",
-    "gender": "female",
-    "provider": "edge"
+    "id": "user001",
+    "name": "张三",
+    "embedding_count": 1
   }
 ]
 ```
 
----
-
-### STT 能力 (`stt`)
-
-#### transcribe - 批量转录
-
-将完整音频转换为文本。
-
-**输入参数:**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| audio | string | ✓ | Base64 编码的音频数据 |
-| language | string | | 语言代码 (auto/zh/en/ja/ko) |
-| provider | string | | STT 提供商 (qwen) |
-| enableTimestamps | boolean | | 是否返回时间戳 |
-
-**输出:**
-
-```json
-{
-  "text": "识别出的文本内容",
-  "segments": [
-    {
-      "text": "识别出的文本内容",
-      "start_time": 0.0,
-      "end_time": 3.5,
-      "confidence": 0.95,
-      "is_final": true
-    }
-  ],
-  "language": "zh",
-  "duration": 3.5
-}
-```
-
-#### startSession - 创建流式会话
-
-创建流式转录会话，用于实时语音识别。
-
-**输入参数:**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| language | string | | 语言代码 |
-| provider | string | | STT 提供商 |
-
-**输出:**
-
-```json
-{
-  "sessionId": "sess_abc123",
-  "state": "idle"
-}
-```
-
-#### sendChunk - 发送音频块
-
-向流式会话发送音频数据块。
-
-**输入参数:**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| sessionId | string | ✓ | 会话 ID |
-| audio | string | ✓ | Base64 编码的 PCM 音频块 (16kHz, 16-bit, mono) |
-
-**输出:**
-
-```json
-{
-  "text": "部分识别结果",
-  "isFinal": false,
-  "confidence": 0.85
-}
-```
-
-#### endSession - 结束会话
-
-结束流式会话并获取最终转录结果。
-
-**输入参数:**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| sessionId | string | ✓ | 会话 ID |
-
-**输出:**
-
-```json
-{
-  "text": "完整的转录文本",
-  "segments": [...],
-  "language": "zh",
-  "duration": 10.5
-}
-```
-
-#### listLanguages - 列出支持的语言
-
-**输出:**
-
-```json
-["auto", "zh", "en", "ja", "ko", "yue"]
-```
-
----
-
-### Live2D 能力 (`live2d`)
-
-#### expression - 设置表情
-
-**输入参数:**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| name | string | ✓ | 表情名称 (f01/f02/f03/f04) |
-
-**输出:**
-
-```json
-{
-  "success": true
-}
-```
-
-**示例:**
+### DELETE /sv/speakers/:id - 删除说话人
 
 ```bash
-curl -X POST http://localhost:3000/api/execute \
-  -H "X-Api-Key: your-api-key" \
-  -d '{
-    "capability_id": "live2d",
-    "operation": "expression",
-    "input": { "name": "f02" }
-  }'
+curl -X DELETE http://localhost:4000/api/sv/speakers/user001
 ```
 
-#### motion - 播放动作
+### GET /sv/config - 获取配置
 
-**输入参数:**
+```bash
+curl http://localhost:4000/api/sv/config
+```
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| group | string | ✓ | 动作组 (idle/tap_body/flick_head/...) |
-| index | number | | 动作索引，不填则随机 |
-
-**输出:**
-
+响应:
 ```json
 {
-  "success": true,
-  "motion": "tap_body_01"
+  "threshold": 0.6,
+  "applyVAD": true
 }
 ```
 
-#### show - 显示/隐藏窗口
+### POST /sv/config - 更新配置
 
-**输入参数:**
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| visible | boolean | ✓ | 是否显示 |
+```bash
+curl -X POST http://localhost:4000/api/sv/config \
+  -H "Content-Type: application/json" \
+  -d '{"threshold": 0.5, "applyVAD": true}'
+```
 
 ---
 
-### Vision 能力 (`vision`)
+## Vision API
 
-#### capture - 截取屏幕
+### GET /screen - 截取屏幕
 
-**输入参数:**
+```bash
+curl http://localhost:4000/api/screen
+```
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| format | string | | 图片格式 (png/jpg) |
-| quality | number | | JPEG 质量 (1-100) |
-| region | object | | 截取区域 {x, y, width, height} |
-
-**输出:**
-
+响应:
 ```json
 {
-  "image": "base64-encoded-image",
+  "image": "<base64 PNG>",
   "width": 1920,
   "height": 1080,
   "format": "png"
 }
 ```
 
+### GET /desktop - 桌面信息
+
+```bash
+curl http://localhost:4000/api/desktop
+```
+
 ---
 
-## 系统 API
+## Live2D API
 
-### GetCapabilities - 获取能力列表
-
-返回所有已注册能力及其状态。
-
-**gRPC:**
-
-```typescript
-const response = await client.getCapabilities({});
-```
-
-**HTTP:**
+### GET /model-info - 模型信息
 
 ```bash
-curl http://localhost:3000/api/capabilities \
-  -H "X-Api-Key: your-api-key"
+curl http://localhost:4000/api/model-info
 ```
 
-**响应:**
-
+响应:
 ```json
 {
-  "capabilities": [
-    {
-      "id": "tts",
-      "name": "Text-to-Speech",
-      "version": "1.0.0",
-      "type": "output",
-      "status": "ready",
-      "operations": [
-        {
-          "name": "speak",
-          "description": "将文本转换为语音并播放",
-          "streaming": true
-        }
-      ]
-    }
-  ]
+  "expressions": ["f01", "f02", "f03", "f04"],
+  "motions": {
+    "idle": 3,
+    "tap_body": 2,
+    "flick_head": 1
+  }
 }
 ```
 
-### HealthCheck - 健康检查
-
-**gRPC:**
-
-```typescript
-const response = await client.healthCheck({
-  capabilityIds: ['tts', 'live2d']  // 可选，不填检查所有
-});
-```
-
-**HTTP:**
+### POST /emote - 设置表情
 
 ```bash
-curl http://localhost:3000/api/health
+curl -X POST http://localhost:4000/api/emote \
+  -H "Content-Type: application/json" \
+  -d '{"expression": "f02"}'
 ```
 
-**响应:**
+### POST /action - 触发动作
 
-```json
-{
-  "overall_status": "healthy",
-  "uptime_seconds": 3600,
-  "capabilities": [
-    {
-      "id": "tts",
-      "status": "ready",
-      "message": "All providers available"
-    },
-    {
-      "id": "live2d",
-      "status": "ready"
-    }
-  ]
-}
+```bash
+curl -X POST http://localhost:4000/api/action \
+  -H "Content-Type: application/json" \
+  -d '{"group": "tap_body", "index": 0}'
 ```
 
 ---
 
 ## 事件订阅
 
-### SSE 事件流 (HTTP)
+### GET /events - SSE 事件流
 
 ```javascript
-const eventSource = new EventSource('http://localhost:3000/api/events');
+const es = new EventSource('http://localhost:4000/api/events');
 
-eventSource.onmessage = (event) => {
+es.onmessage = (event) => {
   const data = JSON.parse(event.data);
   console.log('Event:', data);
 };
 
-eventSource.addEventListener('capability_status', (event) => {
+// 事件类型
+es.addEventListener('expression', (e) => { /* Live2D 表情 */ });
+es.addEventListener('motion', (e) => { /* Live2D 动作 */ });
+es.addEventListener('audio', (e) => { /* TTS 音频 */ });
+es.addEventListener('audio_chunk', (e) => { /* 流式音频块 */ });
+```
+
+### WebSocket
+
+```javascript
+const ws = new WebSocket('ws://localhost:4000');
+
+ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
-  console.log('Capability status changed:', data);
-});
-```
-
-### 双向流 (gRPC)
-
-```typescript
-const stream = client.connect();
-
-stream.on('data', (message) => {
-  if (message.payload.oneofKind === 'event') {
-    console.log('Event:', message.payload.event);
-  }
-});
-
-// 发送命令
-stream.write({
-  requestId: 'req-001',
-  timestamp: new Date(),
-  payload: {
-    oneofKind: 'command',
-    command: {
-      capabilityId: 'tts',
-      operation: 'speak',
-      input: Buffer.from(JSON.stringify({ text: 'Hello' }))
-    }
-  }
-});
+  console.log('WS:', data);
+};
 ```
 
 ---
 
-## 错误码
+## 音频格式
 
-| 错误码 | 说明 |
-|--------|------|
-| ERROR_UNKNOWN | 未知错误 |
-| ERROR_CAPABILITY_NOT_FOUND | 能力不存在 |
-| ERROR_OPERATION_NOT_FOUND | 操作不存在 |
-| ERROR_INVALID_INPUT | 输入参数无效 |
-| ERROR_TIMEOUT | 操作超时 |
-| ERROR_CAPABILITY_UNAVAILABLE | 能力不可用 |
-| ERROR_INTERNAL | 内部错误 |
+所有音频 API 使用统一格式:
+- 采样率: 16000 Hz
+- 位深: 16-bit (signed int)
+- 声道: 单声道 (mono)
+- 编码: Base64
 
 ---
 
-## 认证
+## 错误响应
 
-所有受保护的 API 需要提供 API Key：
-
-**gRPC:**
-
-```typescript
-const metadata = new grpc.Metadata();
-metadata.add('x-api-key', 'your-api-key');
-
-client.execute(request, metadata, callback);
+```json
+{
+  "error": "错误描述"
+}
 ```
 
-**HTTP:**
-
-```bash
-curl -H "X-Api-Key: your-api-key" http://localhost:3000/api/...
-```
-
-## 速率限制
-
-- 默认: 100 请求/分钟
-- TTS speak: 10 请求/分钟
-- Vision capture: 30 请求/分钟
+HTTP 状态码:
+- 400 - 请求参数错误
+- 401 - 未授权 (需要 API Key)
+- 404 - 资源不存在
+- 500 - 服务器内部错误
+- 503 - 服务不可用
