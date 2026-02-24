@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClawBody Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .status-ok { color: #22c55e; }
+    .status-error { color: #ef4444; }
+    .status-warn { color: #f59e0b; }
+    .log-entry { font-family: monospace; font-size: 12px; }
+    .log-info { color: #60a5fa; }
+    .log-warn { color: #fbbf24; }
+    .log-error { color: #f87171; }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+  <div class="container mx-auto px-4 py-6 max-w-6xl">
+    <!-- Header -->
+    <header class="mb-8">
+      <h1 class="text-2xl font-bold text-white">ClawBody Dashboard</h1>
+      <p class="text-gray-400 text-sm">Gateway: <span id="gateway-url">http://localhost:4000</span></p>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Pipeline Control -->
+      <section class="bg-gray-800 rounded-lg p-5">
+        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+          <span>🎙️</span> Pipeline 控制
+        </h2>
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-400">VAD → SV → STT → OpenClaw</p>
+            <p id="pipeline-status" class="text-sm mt-1">状态: <span class="text-yellow-400">检测中...</span></p>
+          </div>
+          <div class="flex gap-2">
+            <button id="btn-enable" onclick="enablePipeline()"
+              class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium transition">
+              启用
+            </button>
+            <button id="btn-disable" onclick="disablePipeline()"
+              class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-sm font-medium transition">
+              禁用
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Service Status -->
+      <section class="bg-gray-800 rounded-lg p-5">
+        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+          <span>📊</span> 服务状态
+          <button onclick="refreshDiagnostics()" class="ml-auto text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded">
+            刷新
+          </button>
+        </h2>
+        <div id="services-grid" class="grid grid-cols-2 gap-3 text-sm">
+          <div class="text-gray-400">加载中...</div>
+        </div>
+      </section>
+
+      <!-- Speaker Management -->
+      <section class="bg-gray-800 rounded-lg p-5">
+        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+          <span>👤</span> 说话人管理
+          <button onclick="refreshSpeakers()" class="ml-auto text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded">
+            刷新
+          </button>
+        </h2>
+        <div id="speakers-list" class="space-y-2 text-sm">
+          <div class="text-gray-400">加载中...</div>
+        </div>
+      </section>
+
+      <!-- TTS Test -->
+      <section class="bg-gray-800 rounded-lg p-5">
+        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+          <span>🔊</span> TTS 测试
+        </h2>
+        <div class="space-y-3">
+          <textarea id="tts-text" rows="2" placeholder="输入要合成的文本..."
+            class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"></textarea>
+          <div class="flex gap-2">
+            <button onclick="testTTS()"
+              class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium transition">
+              播放
+            </button>
+            <button onclick="testTTSStream()"
+              class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm font-medium transition">
+              流式播放
+            </button>
+          </div>
+          <p id="tts-status" class="text-xs text-gray-400"></p>
+        </div>
+      </section>
+
+      <!-- OpenClaw Status -->
+      <section class="bg-gray-800 rounded-lg p-5">
+        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+          <span>🧠</span> OpenClaw 连接
+        </h2>
+        <div id="openclaw-status" class="text-sm">
+          <div class="text-gray-400">检测中...</div>
+        </div>
+      </section>
+
+      <!-- Quick Actions -->
+      <section class="bg-gray-800 rounded-lg p-5">
+        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+          <span>⚡</span> 快捷操作
+        </h2>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="resetVAD()"
+            class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition">
+            重置 VAD
+          </button>
+          <button onclick="window.open('/', '_blank')"
+            class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition">
+            打开 Live2D
+          </button>
+          <button onclick="location.reload()"
+            class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition">
+            刷新页面
+          </button>
+          <button onclick="downloadDiagnostics()"
+            class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition">
+            导出诊断
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Event Log -->
+    <section class="bg-gray-800 rounded-lg p-5 mt-6">
+      <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+        <span>📜</span> 实时事件
+        <span id="sse-status" class="ml-2 text-xs px-2 py-0.5 rounded bg-gray-700">断开</span>
+        <button onclick="clearLogs()" class="ml-auto text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded">
+          清空
+        </button>
+      </h2>
+      <div id="event-log" class="h-48 overflow-y-auto bg-gray-900 rounded p-3 space-y-1">
+        <div class="log-entry text-gray-500">等待连接...</div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="mt-8 text-center text-gray-500 text-xs">
+      ClawBody Gateway Dashboard | <span id="uptime">-</span>
+    </footer>
+  </div>
+
+  <script>
+    const API_BASE = '';  // Same origin
+
+    // === Utility: Safe text escaping ===
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.textContent;
+    }
+
+    // === Pipeline Control ===
+    async function getPipelineStatus() {
+      try {
+        const res = await fetch(`${API_BASE}/api/pipeline`);
+        const data = await res.json();
+        updatePipelineUI(data.enabled);
+      } catch (e) {
+        const statusEl = document.getElementById('pipeline-status');
+        statusEl.textContent = '状态: 无法连接';
+        statusEl.className = 'text-sm mt-1 text-red-400';
+      }
+    }
+
+    function updatePipelineUI(enabled) {
+      const statusEl = document.getElementById('pipeline-status');
+      statusEl.textContent = enabled ? '状态: 已启用' : '状态: 已禁用';
+      statusEl.className = enabled ? 'text-sm mt-1 text-green-400' : 'text-sm mt-1 text-gray-400';
+    }
+
+    async function enablePipeline() {
+      try {
+        await fetch(`${API_BASE}/api/pipeline/enable`, { method: 'POST' });
+        updatePipelineUI(true);
+        addLog('info', 'Pipeline 已启用');
+      } catch (e) {
+        addLog('error', '启用 Pipeline 失败: ' + e.message);
+      }
+    }
+
+    async function disablePipeline() {
+      try {
+        await fetch(`${API_BASE}/api/pipeline/disable`, { method: 'POST' });
+        updatePipelineUI(false);
+        addLog('info', 'Pipeline 已禁用');
+      } catch (e) {
+        addLog('error', '禁用 Pipeline 失败: ' + e.message);
+      }
+    }
+
+    // === Diagnostics ===
+    async function refreshDiagnostics() {
+      const grid = document.getElementById('services-grid');
+      const ocStatus = document.getElementById('openclaw-status');
+
+      try {
+        const res = await fetch(`${API_BASE}/api/diagnostics`);
+        const data = await res.json();
+
+        // Update uptime
+        document.getElementById('uptime').textContent = `Uptime: ${data.gateway.uptime}s`;
+
+        // Clear and rebuild services grid
+        grid.textContent = '';
+        const services = data.services;
+
+        for (const [name, info] of Object.entries(services)) {
+          const div = document.createElement('div');
+          const statusClass = info.status === 'ok' ? 'status-ok' :
+                             info.status === 'error' ? 'status-error' : 'status-warn';
+          const icon = info.status === 'ok' ? '✓' :
+                      info.status === 'error' ? '✗' : '○';
+          const latency = info.latency ? ` (${info.latency}ms)` : '';
+          div.className = statusClass;
+          div.textContent = `${icon} ${name}${latency}`;
+          grid.appendChild(div);
+        }
+
+        if (Object.keys(services).length === 0) {
+          const div = document.createElement('div');
+          div.className = 'text-gray-400';
+          div.textContent = '无服务';
+          grid.appendChild(div);
+        }
+
+        // OpenClaw status
+        ocStatus.textContent = '';
+        const oc = data.openclaw;
+        const ocSpan = document.createElement('span');
+
+        if (oc.status === 'ok') {
+          ocSpan.className = 'status-ok';
+          ocSpan.textContent = '✓ 已连接';
+          ocStatus.appendChild(ocSpan);
+          if (oc.message) {
+            const msgSpan = document.createElement('span');
+            msgSpan.className = 'text-gray-400 text-xs block';
+            msgSpan.textContent = oc.message;
+            ocStatus.appendChild(msgSpan);
+          }
+        } else if (oc.status === 'not_configured') {
+          ocSpan.className = 'status-warn';
+          ocSpan.textContent = '○ 未配置';
+          ocStatus.appendChild(ocSpan);
+        } else {
+          ocSpan.className = 'status-error';
+          ocSpan.textContent = '✗ ' + (oc.message || '连接失败');
+          ocStatus.appendChild(ocSpan);
+        }
+
+      } catch (e) {
+        grid.textContent = '';
+        const div = document.createElement('div');
+        div.className = 'status-error';
+        div.textContent = '获取失败';
+        grid.appendChild(div);
+      }
+    }
+
+    async function downloadDiagnostics() {
+      try {
+        const res = await fetch(`${API_BASE}/api/diagnostics`);
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `clawbody-diagnostics-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        addLog('error', '导出失败: ' + e.message);
+      }
+    }
+
+    // === Speakers ===
+    async function refreshSpeakers() {
+      const list = document.getElementById('speakers-list');
+      try {
+        const res = await fetch(`${API_BASE}/api/sv/speakers`);
+        const data = await res.json();
+        const speakers = data.speakers || data || [];
+
+        list.textContent = '';
+
+        if (speakers.length === 0) {
+          const div = document.createElement('div');
+          div.className = 'text-gray-400';
+          div.textContent = '暂无注册说话人';
+          list.appendChild(div);
+          return;
+        }
+
+        for (const s of speakers) {
+          const speakerId = s.id || s.speaker_id;
+          const speakerName = s.name || s.speaker_name;
+
+          const div = document.createElement('div');
+          div.className = 'flex items-center justify-between bg-gray-700 rounded px-3 py-2';
+
+          const infoDiv = document.createElement('div');
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'font-medium';
+          nameSpan.textContent = speakerName;
+          const idSpan = document.createElement('span');
+          idSpan.className = 'text-gray-400 text-xs ml-2';
+          idSpan.textContent = `(${speakerId})`;
+          infoDiv.appendChild(nameSpan);
+          infoDiv.appendChild(idSpan);
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.className = 'text-red-400 hover:text-red-300 text-xs';
+          deleteBtn.textContent = '删除';
+          deleteBtn.onclick = () => deleteSpeaker(speakerId);
+
+          div.appendChild(infoDiv);
+          div.appendChild(deleteBtn);
+          list.appendChild(div);
+        }
+      } catch (e) {
+        list.textContent = '';
+        const div = document.createElement('div');
+        div.className = 'status-error';
+        div.textContent = '获取失败';
+        list.appendChild(div);
+      }
+    }
+
+    async function deleteSpeaker(id) {
+      if (!confirm(`确定删除说话人 ${id}?`)) return;
+      try {
+        await fetch(`${API_BASE}/api/sv/speakers/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        addLog('info', `已删除说话人: ${id}`);
+        refreshSpeakers();
+      } catch (e) {
+        addLog('error', '删除失败: ' + e.message);
+      }
+    }
+
+    // === TTS ===
+    async function testTTS() {
+      const text = document.getElementById('tts-text').value.trim();
+      const statusEl = document.getElementById('tts-status');
+      if (!text) {
+        statusEl.textContent = '请输入文本';
+        return;
+      }
+
+      statusEl.textContent = '合成中...';
+      try {
+        const res = await fetch(`${API_BASE}/api/speak`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const data = await res.json();
+        statusEl.textContent = `完成 (${data.timings?.tts_ms || '-'}ms)`;
+        addLog('info', `TTS: "${text.slice(0, 30)}..."`);
+      } catch (e) {
+        statusEl.textContent = '失败: ' + e.message;
+      }
+    }
+
+    async function testTTSStream() {
+      const text = document.getElementById('tts-text').value.trim();
+      const statusEl = document.getElementById('tts-status');
+      if (!text) {
+        statusEl.textContent = '请输入文本';
+        return;
+      }
+
+      statusEl.textContent = '流式合成中...';
+      try {
+        const res = await fetch(`${API_BASE}/api/speak/stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        await res.json();
+        statusEl.textContent = '流式播放已触发';
+        addLog('info', `TTS Stream: "${text.slice(0, 30)}..."`);
+      } catch (e) {
+        statusEl.textContent = '失败: ' + e.message;
+      }
+    }
+
+    // === VAD ===
+    async function resetVAD() {
+      try {
+        await fetch(`${API_BASE}/api/vad/reset`, { method: 'POST' });
+        addLog('info', 'VAD 已重置');
+      } catch (e) {
+        addLog('error', 'VAD 重置失败: ' + e.message);
+      }
+    }
+
+    // === Event Log ===
+    const logEl = document.getElementById('event-log');
+    const maxLogs = 100;
+
+    function addLog(level, message) {
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = `log-entry log-${level}`;
+      div.textContent = `[${time}] ${message}`;
+      logEl.appendChild(div);
+
+      // Trim old logs
+      while (logEl.children.length > maxLogs) {
+        logEl.removeChild(logEl.firstChild);
+      }
+
+      // Auto scroll
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearLogs() {
+      logEl.textContent = '';
+      const div = document.createElement('div');
+      div.className = 'log-entry text-gray-500';
+      div.textContent = '日志已清空';
+      logEl.appendChild(div);
+    }
+
+    // === SSE ===
+    function connectSSE() {
+      const statusEl = document.getElementById('sse-status');
+      const es = new EventSource(`${API_BASE}/api/events`);
+
+      es.onopen = () => {
+        statusEl.textContent = '已连接';
+        statusEl.className = 'ml-2 text-xs px-2 py-0.5 rounded bg-green-700';
+        addLog('info', 'SSE 已连接');
+      };
+
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type === 'hello') return;
+          addLog('info', `Event: ${JSON.stringify(data).slice(0, 80)}`);
+
+          // Handle pipeline status updates
+          if (data.type === 'pipeline_status') {
+            updatePipelineUI(data.enabled);
+          }
+        } catch {}
+      };
+
+      es.onerror = () => {
+        statusEl.textContent = '断开';
+        statusEl.className = 'ml-2 text-xs px-2 py-0.5 rounded bg-red-700';
+        es.close();
+        setTimeout(connectSSE, 3000);
+      };
+    }
+
+    // === Init ===
+    document.addEventListener('DOMContentLoaded', () => {
+      getPipelineStatus();
+      refreshDiagnostics();
+      refreshSpeakers();
+      connectSSE();
+
+      // Auto refresh every 30s
+      setInterval(refreshDiagnostics, 30000);
+    });
+  </script>
+</body>
+</html>
