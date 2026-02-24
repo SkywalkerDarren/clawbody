@@ -41,14 +41,14 @@
 - [x] docs/TROUBLESHOOTING.md - 故障排查
 - [x] docs/API.md - 完整 API 参考
 
+### 6. Desktop 集成 ✅
+- [x] Desktop 托盘图标显示 Pipeline 状态
+- [x] 托盘菜单 Pipeline 开关控制
+- [x] 托盘菜单打开 Dashboard
+
 ---
 
 ## 待完成 📋
-
-### Desktop 集成
-- [ ] Desktop 托盘图标显示 Pipeline 状态
-- [ ] Desktop UI 开关控制
-- [ ] 托盘菜单快捷操作
 
 ### 性能优化
 - [ ] 测量 SV 增加的延迟
