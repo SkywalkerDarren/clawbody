@@ -5,6 +5,7 @@ import { servicesModule } from './services'
 import { speakersModule } from './speakers'
 import { ttsModule } from './tts'
 import { openclawModule } from './openclaw'
+import { actionsModule } from './actions'
 import { eventsModule } from './events'
 
 export const modules: IModule[] = [
@@ -13,6 +14,7 @@ export const modules: IModule[] = [
   speakersModule,
   ttsModule,
   openclawModule,
+  actionsModule,
   eventsModule,
 ]
 
