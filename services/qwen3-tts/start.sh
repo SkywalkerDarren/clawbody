@@ -17,9 +17,9 @@ export QWEN_TTS_DEVICE="${QWEN_TTS_DEVICE:-cuda:0}"
 export HOST="${HOST:-0.0.0.0}"
 export PORT="${PORT:-8765}"
 
-# 离线模式 - 跳过每次启动时的配置文件检查
-export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
-export MODELSCOPE_OFFLINE="${MODELSCOPE_OFFLINE:-1}"
+# 离线模式 - 设置为 1 可跳过每次启动时的配置文件检查 (需要模型已缓存)
+# export HF_HUB_OFFLINE=1
+# export MODELSCOPE_OFFLINE=1
 
 echo "Starting Qwen3-TTS service..."
 echo "  Model: $QWEN_TTS_MODEL"

@@ -21,8 +21,8 @@ export PORT="${PORT:-8766}"
 export SESSION_TIMEOUT_SEC="${SESSION_TIMEOUT_SEC:-30}"
 export MAX_CONCURRENT_SESSIONS="${MAX_CONCURRENT_SESSIONS:-1}"
 
-# 离线模式 - 跳过每次启动时的配置文件检查
-export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
+# 离线模式 - 设置为 1 可跳过每次启动时的配置文件检查 (需要模型已缓存)
+# export HF_HUB_OFFLINE=1
 
 echo "Starting Qwen3-STT service..."
 echo "  Model: $QWEN_ASR_MODEL"

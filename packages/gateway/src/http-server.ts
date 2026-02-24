@@ -51,8 +51,8 @@ export class HttpServer {
   private startTime = Date.now();
   private unsubscribes: Array<() => void> = [];
 
-  // VAD → SV → STT → OpenClaw 链路开关
-  private pipelineEnabled = false;
+  // VAD → SV → STT → OpenClaw 链路开关 (默认启用)
+  private pipelineEnabled = true;
 
   constructor(registry: CapabilityRegistry, config: HttpServerConfig, persona?: PersonaConfig, openclaw?: OpenClawConfig) {
     this.registry = registry;
