@@ -51,6 +51,9 @@ export class HttpServer {
   private startTime = Date.now();
   private unsubscribes: Array<() => void> = [];
 
+  // VAD → SV → STT → OpenClaw 链路开关
+  private pipelineEnabled = false;
+
   constructor(registry: CapabilityRegistry, config: HttpServerConfig, persona?: PersonaConfig, openclaw?: OpenClawConfig) {
     this.registry = registry;
     this.config = config;
@@ -986,6 +989,44 @@ export class HttpServer {
       }
     });
 
+    // === Pipeline 控制 (VAD → SV → STT → OpenClaw 链路) ===
+
+    // GET /api/pipeline - 获取链路状态
+    this.app.get('/api/pipeline', (_req: Request, res: Response) => {
+      send(res, 200, {
+        enabled: this.pipelineEnabled,
+        description: 'VAD → SV → STT → OpenClaw pipeline',
+      });
+    });
+
+    // POST /api/pipeline/enable - 启用链路
+    this.app.post('/api/pipeline/enable', (_req: Request, res: Response) => {
+      this.pipelineEnabled = true;
+      logger.info(MOD, 'Pipeline enabled');
+
+      // 广播状态变化
+      this.broadcastWS({ type: 'pipeline_status', enabled: true });
+
+      send(res, 200, { enabled: true, message: 'Pipeline enabled' });
+    });
+
+    // POST /api/pipeline/disable - 禁用链路
+    this.app.post('/api/pipeline/disable', (_req: Request, res: Response) => {
+      this.pipelineEnabled = false;
+      logger.info(MOD, 'Pipeline disabled');
+
+      // 重置 VAD 状态
+      const vad = this.registry.get('vad');
+      if (vad) {
+        vad.execute('reset', {}).catch(() => {});
+      }
+
+      // 广播状态变化
+      this.broadcastWS({ type: 'pipeline_status', enabled: false });
+
+      send(res, 200, { enabled: false, message: 'Pipeline disabled' });
+    });
+
     // GET /api/events (SSE)
     this.app.get('/api/events', (req: Request, res: Response) => {
       res.setHeader('Content-Type', 'text/event-stream');
@@ -1067,6 +1108,12 @@ export class HttpServer {
   }
 
   private async handleVADSpeechEnd(audioBuffer: string): Promise<void> {
+    // 检查链路开关
+    if (!this.pipelineEnabled) {
+      logger.debug(MOD, 'Pipeline disabled, ignoring VAD speech_end');
+      return;
+    }
+
     // 先进行说话人验证
     const sv = this.registry.get('speaker-verification');
     if (sv) {
