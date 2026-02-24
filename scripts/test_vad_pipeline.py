@@ -10,7 +10,6 @@
 
 import sys
 import base64
-import time
 import atexit
 
 try:
@@ -119,6 +118,7 @@ def main():
 
     def audio_callback(indata, frames, time_info, status):
         nonlocal is_speaking, speech_count
+        _ = frames, time_info  # unused
 
         if status:
             print(f"⚠️ {status}", file=sys.stderr)
