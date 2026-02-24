@@ -49,7 +49,7 @@ describe('API Schemas', () => {
       const result = SpeakerSchema.safeParse({
         id: 'user001',
         name: '张三',
-        embedding_count: 3,
+        embeddingCount: 3,
       });
       expect(result.success).toBe(true);
     });
@@ -64,16 +64,18 @@ describe('API Schemas', () => {
   });
 
   describe('SpeakersResponseSchema', () => {
-    it('validates array of speakers', () => {
-      const result = SpeakersResponseSchema.safeParse([
-        { id: 'user001', name: '张三' },
-        { id: 'user002', name: '李四', embedding_count: 2 },
-      ]);
+    it('validates object with speakers array', () => {
+      const result = SpeakersResponseSchema.safeParse({
+        speakers: [
+          { id: 'user001', name: '张三' },
+          { id: 'user002', name: '李四', embeddingCount: 2 },
+        ],
+      });
       expect(result.success).toBe(true);
     });
 
-    it('validates empty array', () => {
-      const result = SpeakersResponseSchema.safeParse([]);
+    it('validates empty speakers array', () => {
+      const result = SpeakersResponseSchema.safeParse({ speakers: [] });
       expect(result.success).toBe(true);
     });
   });
@@ -151,10 +153,10 @@ describe('API Schemas', () => {
   describe('ScreenshotSchema', () => {
     it('validates correct screenshot', () => {
       const result = ScreenshotSchema.safeParse({
-        image: 'base64imagedata',
+        base64: 'base64imagedata',
         width: 1920,
         height: 1080,
-        format: 'png',
+        timestamp: '2024-01-01T00:00:00.000Z',
       });
       expect(result.success).toBe(true);
     });

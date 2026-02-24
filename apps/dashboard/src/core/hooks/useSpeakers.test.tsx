@@ -28,11 +28,11 @@ describe('useSpeakers hooks', () => {
   describe('useSpeakers', () => {
     it('fetches speakers list', async () => {
       const mockSpeakers = [
-        { id: 'user001', name: 'Test User', embedding_count: 1 },
+        { id: 'user001', name: 'Test User', embeddingCount: 1 },
       ];
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockSpeakers),
+        json: () => Promise.resolve({ speakers: mockSpeakers }),
       });
 
       const { result } = renderHook(() => useSpeakers(), {
@@ -53,7 +53,7 @@ describe('useSpeakers hooks', () => {
     it('handles empty speakers list', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve([]),
+        json: () => Promise.resolve({ speakers: [] }),
       });
 
       const { result } = renderHook(() => useSpeakers(), {
