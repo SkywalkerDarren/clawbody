@@ -1,88 +1,61 @@
 # ClawBody 下一步计划
 
-## 1. 主动开关
+## 已完成 ✅
 
-当前问题：只能通过 `test_vad_pipeline.py` 脚本启动完整流程
+### 1. 主动开关 ✅
+- [x] Gateway 提供 API 开关控制 VAD → SV → STT → OpenClaw 链路
+  - `GET /api/pipeline` - 获取状态
+  - `POST /api/pipeline/enable` - 启用
+  - `POST /api/pipeline/disable` - 禁用
+- [x] WebSocket 广播状态变化
+- [x] test_vad_pipeline.py 自动启用/禁用
 
-需求：
-- Gateway 提供 API 开关控制 VAD → SV → STT → OpenClaw 链路
-- Desktop 桌面端提供 UI 开关
-- 支持热切换，无需重启服务
+### 2. 启动自检流程 ✅
+- [x] `/api/diagnostics` 端点
+- [x] 检测所有服务状态 (TTS, STT, VAD, SV, Vision, Live2D)
+- [x] 检测 OpenClaw 连接状态
+- [x] CLI 命令：`./scripts/start.sh --check`
 
-## 2. 启动自检流程
+### 3. 启动反馈优化 ✅
+- [x] `./scripts/start.sh --wait` 等待所有服务就绪
+- [x] 实时显示各服务加载进度 (需要 jq)
+- [x] 桌面通知 (notify-send)
+- [x] 120s 超时
 
-当前问题：服务启动后不知道哪一步出了问题
+### 4. Gateway Web 控制监控面板 ✅
+- [x] http://localhost:4000/dashboard.html
+- [x] Pipeline 开关控制
+- [x] 服务状态监控
+- [x] 说话人管理 (列表/删除)
+- [x] TTS 测试
+- [x] 实时事件日志 (SSE)
+- [x] 导出诊断报告
 
-需求：
-- 提供 `/api/diagnostics` 端点，检测所有服务状态
-- 检测项：
-  - Gateway 自身状态
-  - TTS 服务连接 (8765)
-  - STT 服务连接 + 模型加载状态 (8766)
-  - VAD 服务连接 + 模型加载状态 (8767)
-  - SV 服务连接 + 模型加载状态 (8768)
-  - OpenClaw 连接状态
-- 返回详细的诊断报告，指出哪一步有问题
-- 提供 CLI 命令：`./scripts/start.sh --check`
-
-## 3. 启动反馈优化
-
-当前问题："等待 30-60 秒" 提示不够，用户不知道何时真正就绪
-
-需求：
-- 服务启动后主动轮询各服务状态
-- 实时显示各服务加载进度
-- 所有服务就绪后发出通知（声音/桌面通知）
-- 考虑：
-  - 终端彩色进度条
-  - Desktop 托盘图标状态变化
-  - 系统通知
-
-## 4. Gateway Web 控制监控面板
-
-当前问题：没有可视化的监控和控制界面
-
-需求：
-- Web UI 面板 (http://localhost:4000/dashboard)
-- 功能：
-  - 服务状态监控（各能力的健康状态）
-  - 实时日志查看
-  - VAD/SV/STT 链路开关
-  - SV 说话人管理（注册/删除/测试）
-  - TTS 测试（输入文本播放）
-  - 配置查看/修改
-  - 性能指标（延迟、吞吐量）
-- 技术选型：
-  - 前端：React + Tailwind (或纯 HTML + Alpine.js 轻量方案)
-  - 后端：复用现有 Gateway HTTP API
-  - 实时更新：WebSocket/SSE
-
-## 5. 文档清理和重写
-
-当前问题：文档分散、过时、不完整
-
-需求：
-- 清理过时文档
-- 重写核心文档：
-  - README.md - 项目概述、快速开始
-  - docs/ARCHITECTURE.md - 系统架构
-  - docs/API.md - API 参考
-  - docs/DEPLOYMENT.md - 部署指南
-- 新增文档：
-  - docs/SPEAKER-VERIFICATION.md - SV 使用指南
-  - docs/TROUBLESHOOTING.md - 故障排查
-- 统一文档风格和格式
+### 5. 文档更新 ✅
+- [x] README.md 重写
 
 ---
 
-## 优先级建议
+## 待完成 📋
 
-1. **P0 - 启动自检** - 解决"不知道哪里出问题"的痛点
-2. **P0 - 主动开关** - 让完整链路可用
-3. **P1 - 启动反馈** - 改善用户体验
-4. **P1 - Web 面板** - 可视化监控
-5. **P2 - 文档重写** - 长期维护
+### Desktop 集成
+- [ ] Desktop 托盘图标显示 Pipeline 状态
+- [ ] Desktop UI 开关控制
+- [ ] 托盘菜单快捷操作
+
+### 文档补充
+- [ ] docs/SPEAKER-VERIFICATION.md - SV 使用指南
+- [ ] docs/TROUBLESHOOTING.md - 故障排查
+- [ ] 更新 docs/API.md - 添加新 API
+
+### 性能优化
+- [ ] 测量 SV 增加的延迟
+- [ ] 考虑 SV 异步验证
+
+### 其他
+- [ ] 多说话人识别 (识别是哪个用户)
+- [ ] 声纹注册 Web UI
 
 ---
 
-Created: 2026-02-24
+Updated: 2026-02-24
