@@ -44,12 +44,18 @@ export type PipelineResponse = z.infer<typeof PipelineResponseSchema>;
 export const SpeakerSchema = z.object({
   id: z.string(),
   name: z.string(),
-  embedding_count: z.number().optional(),
+  enrolledAt: z.coerce.date().optional(),
+  embeddingCount: z.number().optional(),
 });
 
 export type Speaker = z.infer<typeof SpeakerSchema>;
 
-export const SpeakersResponseSchema = z.array(SpeakerSchema);
+// API returns { speakers: [...] }
+export const SpeakersResponseSchema = z.object({
+  speakers: z.array(SpeakerSchema),
+});
+
+export type SpeakersResponse = z.infer<typeof SpeakersResponseSchema>;
 
 export const EnrollRequestSchema = z.object({
   speaker_id: z.string().min(1, 'Speaker ID is required'),
@@ -135,10 +141,10 @@ export type ModelInfo = z.infer<typeof ModelInfoSchema>;
 
 // === Vision ===
 export const ScreenshotSchema = z.object({
-  image: z.string(),
+  base64: z.string(),
   width: z.number(),
   height: z.number(),
-  format: z.string(),
+  timestamp: z.string(),
 });
 
 export type Screenshot = z.infer<typeof ScreenshotSchema>;

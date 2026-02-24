@@ -13,7 +13,10 @@ export const SPEAKERS_QUERY_KEY = ['speakers'] as const;
 export function useSpeakers() {
   return useQuery({
     queryKey: SPEAKERS_QUERY_KEY,
-    queryFn: () => apiGet('/sv/speakers', SpeakersResponseSchema),
+    queryFn: async () => {
+      const response = await apiGet('/sv/speakers', SpeakersResponseSchema);
+      return response.speakers;
+    },
   });
 }
 

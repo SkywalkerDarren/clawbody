@@ -157,9 +157,9 @@ export function SpeakersCard() {
                 <div>
                   <span className="font-medium text-sm">{s.name}</span>
                   <span className="text-xs text-muted-foreground ml-2">({s.id})</span>
-                  {s.embedding_count !== undefined && (
+                  {s.embeddingCount !== undefined && (
                     <Badge variant="secondary" className="ml-2 text-xs">
-                      {s.embedding_count} 声纹
+                      {s.embeddingCount} 声纹
                     </Badge>
                   )}
                 </div>

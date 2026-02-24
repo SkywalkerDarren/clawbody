@@ -13,7 +13,7 @@ export function Live2DCard() {
   const triggerExpression = async (name: string) => {
     setLoading(true);
     try {
-      await apiPost('/emote', OkResponseSchema, { expression: name });
+      await apiPost('/emote', OkResponseSchema, { emotion: name });
       addLog('info', `表情: ${name}`);
     } catch (err) {
       addLog('error', `表情失败: ${err instanceof Error ? err.message : '未知错误'}`);
@@ -22,11 +22,11 @@ export function Live2DCard() {
     }
   };
 
-  const triggerMotion = async (group: string, index: number) => {
+  const triggerMotion = async (group: string, _index: number) => {
     setLoading(true);
     try {
-      await apiPost('/action', OkResponseSchema, { group, index });
-      addLog('info', `动作: ${group}[${index}]`);
+      await apiPost('/action', OkResponseSchema, { action: group });
+      addLog('info', `动作: ${group}`);
     } catch (err) {
       addLog('error', `动作失败: ${err instanceof Error ? err.message : '未知错误'}`);
     } finally {

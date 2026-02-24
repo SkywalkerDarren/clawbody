@@ -71,7 +71,8 @@ export class HttpServer {
   }
 
   private setupMiddleware(): void {
-    this.app.use(express.json());
+    // Increase JSON body limit for audio data (base64 encoded)
+    this.app.use(express.json({ limit: '50mb' }));
 
     // 请求/响应日志中间件
     this.app.use('/api', (req: Request, res: Response, next: NextFunction) => {

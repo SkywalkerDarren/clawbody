@@ -13,7 +13,7 @@ export function VisionCard() {
   const captureScreen = async () => {
     const result = await refetch();
     if (result.data) {
-      setScreenshot(`data:image/${result.data.format};base64,${result.data.image}`);
+      setScreenshot(`data:image/png;base64,${result.data.base64}`);
       setInfo({ width: result.data.width, height: result.data.height });
       addLog('info', `截图: ${result.data.width}x${result.data.height}`);
     } else if (result.error) {
