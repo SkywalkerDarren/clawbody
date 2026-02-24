@@ -212,32 +212,29 @@ export class HttpServer {
         overall: 'ok',
       };
 
-      // 检查各能力服务
-      const serviceChecks = [
-        { name: 'tts', capability: 'tts', action: 'listVoices' },
-        { name: 'stt', capability: 'stt', action: 'listLanguages' },
-        { name: 'vad', capability: 'vad', action: 'getConfig' },
-        { name: 'speaker-verification', capability: 'speaker-verification', action: 'getConfig' },
-        { name: 'vision', capability: 'vision', action: 'getDesktopInfo' },
-        { name: 'live2d', capability: 'live2d', action: 'getModelInfo' },
-      ];
+      // 检查各能力服务 - 使用 healthCheck 而非 execute
+      const serviceNames = ['tts', 'stt', 'vad', 'speaker-verification', 'vision', 'live2d'];
 
-      for (const check of serviceChecks) {
-        const cap = this.registry.get(check.capability);
+      for (const name of serviceNames) {
+        const cap = this.registry.get(name);
         if (!cap) {
-          diagnostics.services[check.name] = { status: 'not_registered' };
+          diagnostics.services[name] = { status: 'not_registered' };
           continue;
         }
 
         const startTime = Date.now();
         try {
-          await cap.execute(check.action, {});
-          diagnostics.services[check.name] = {
-            status: 'ok',
+          const health = await cap.healthCheck();
+          diagnostics.services[name] = {
+            status: health.status === 'ready' ? 'ok' : 'error',
+            message: health.message,
             latency: Date.now() - startTime,
           };
+          if (health.status !== 'ready') {
+            diagnostics.overall = 'degraded';
+          }
         } catch (err) {
-          diagnostics.services[check.name] = {
+          diagnostics.services[name] = {
             status: 'error',
             message: err instanceof Error ? err.message : String(err),
             latency: Date.now() - startTime,
