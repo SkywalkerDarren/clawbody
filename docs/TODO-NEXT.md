@@ -37,6 +37,9 @@
 
 ### 5. 文档更新 ✅
 - [x] README.md 重写
+- [x] docs/SPEAKER-VERIFICATION.md - SV 使用指南
+- [x] docs/TROUBLESHOOTING.md - 故障排查
+- [x] docs/API.md - 完整 API 参考
 
 ---
 
@@ -46,11 +49,6 @@
 - [ ] Desktop 托盘图标显示 Pipeline 状态
 - [ ] Desktop UI 开关控制
 - [ ] 托盘菜单快捷操作
-
-### 文档补充
-- [ ] docs/SPEAKER-VERIFICATION.md - SV 使用指南
-- [ ] docs/TROUBLESHOOTING.md - 故障排查
-- [ ] 更新 docs/API.md - 添加新 API
 
 ### 性能优化
 - [ ] 测量 SV 增加的延迟
