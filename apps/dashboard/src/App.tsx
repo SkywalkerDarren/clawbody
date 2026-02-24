@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Circle } from 'lucide-react';
 import { useModuleRegistry } from '@/core/module';
 import { useGatewayStore } from '@/core/store';
 import { useSSE } from '@/core/useSSE';
@@ -10,10 +11,8 @@ function App() {
   const { sseConnected } = useGatewayStore();
   const { data: pipelineStatus } = usePipelineStatus();
 
-  // Connect SSE
   useSSE('/api/events');
 
-  // Register all modules
   useEffect(() => {
     for (const module of modules) {
       register(module);
@@ -31,63 +30,65 @@ function App() {
   const eventsModule = registeredModules.find((m) => m.meta.id === 'events');
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-950 text-zinc-100">
-      <div className="mx-auto max-w-6xl px-4 py-8">
+    <div className="min-h-[100dvh] bg-background font-sans">
+      <div className="mx-auto max-w-[1120px] px-6 py-6">
         {/* Header */}
-        <header className="mb-10">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">
-                ClawBody Dashboard
-              </h1>
-              <p className="mt-1 text-sm text-zinc-500">
-                Gateway: localhost:4000
-              </p>
+        <header className="mb-8 flex items-center justify-between">
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-sm font-semibold text-foreground tracking-tight">
+              ClawBody
+            </h1>
+            <span className="text-[11px] text-foreground-3 font-mono">
+              localhost:4000
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <Circle
+                data-testid="sse-indicator"
+                className={`size-2 fill-current ${
+                  sseConnected ? 'text-status-ok' : 'text-status-error'
+                }`}
+              />
+              <span className="text-[11px] text-foreground-3">
+                {sseConnected ? 'SSE' : 'Offline'}
+              </span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span
-                  data-testid="sse-indicator"
-                  className={`h-2 w-2 rounded-full ${
-                    sseConnected ? 'bg-emerald-500' : 'bg-red-500'
-                  }`}
-                />
-                <span className="text-xs text-zinc-500">
-                  {sseConnected ? 'Connected' : 'Disconnected'}
-                </span>
-              </div>
-              {pipelineStatus && (
-                <div
-                  data-testid="pipeline-indicator"
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    pipelineStatus.enabled
-                      ? 'bg-emerald-500/10 text-emerald-400'
-                      : 'bg-zinc-800 text-zinc-400'
-                  }`}
-                >
-                  Pipeline {pipelineStatus.enabled ? 'ON' : 'OFF'}
-                </div>
-              )}
-            </div>
+            {pipelineStatus && (
+              <span
+                data-testid="pipeline-indicator"
+                className={`text-[11px] font-medium ${
+                  pipelineStatus.enabled ? 'text-status-ok' : 'text-foreground-3'
+                }`}
+              >
+                Pipeline {pipelineStatus.enabled ? 'ON' : 'OFF'}
+              </span>
+            )}
           </div>
         </header>
 
-        {/* Control + Monitor modules */}
-        <section className="mb-8">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {controlModules.map((module) => (
-              <module.Component key={module.meta.id} />
-            ))}
-            {monitorModules.map((module) => (
-              <module.Component key={module.meta.id} />
-            ))}
+        {/* Control + Monitor */}
+        <section className="mb-6">
+          <SectionLabel>系统</SectionLabel>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[280px_1fr]">
+            <div className="space-y-3">
+              {controlModules.map((module) => (
+                <module.Component key={module.meta.id} />
+              ))}
+            </div>
+            <div className="space-y-3">
+              {monitorModules.map((module) => (
+                <module.Component key={module.meta.id} />
+              ))}
+            </div>
           </div>
         </section>
 
         {/* Test modules */}
         {testModules.length > 0 && (
-          <section className="mb-8">
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <section className="mb-6">
+            <SectionLabel>测试</SectionLabel>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {testModules.map((module) => (
                 <module.Component key={module.meta.id} />
               ))}
@@ -97,8 +98,9 @@ function App() {
 
         {/* Settings modules */}
         {settingsModules.length > 0 && (
-          <section className="mb-8">
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <section className="mb-6">
+            <SectionLabel>配置</SectionLabel>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {settingsModules.map((module) => (
                 <module.Component key={module.meta.id} />
               ))}
@@ -106,19 +108,23 @@ function App() {
           </section>
         )}
 
-        {/* Events - full width */}
+        {/* Events */}
         {eventsModule && (
-          <section className="mb-8">
+          <section className="mb-6">
+            <SectionLabel>日志</SectionLabel>
             <eventsModule.Component />
           </section>
         )}
-
-        {/* Footer */}
-        <footer className="border-t border-zinc-800 pt-6 text-center text-xs text-zinc-600">
-          ClawBody Gateway Dashboard
-        </footer>
       </div>
     </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mb-2 text-[10px] font-medium uppercase tracking-[0.1em] text-foreground-3/50">
+      {children}
+    </h2>
   );
 }
 

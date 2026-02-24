@@ -58,8 +58,8 @@ export const SpeakersResponseSchema = z.object({
 export type SpeakersResponse = z.infer<typeof SpeakersResponseSchema>;
 
 export const EnrollRequestSchema = z.object({
-  speaker_id: z.string().min(1, 'Speaker ID is required'),
-  speaker_name: z.string().min(1, 'Speaker name is required'),
+  speakerId: z.string().min(1, 'Speaker ID is required'),
+  speakerName: z.string().min(1, 'Speaker name is required'),
   audio: z.string().min(1, 'Audio data is required'),
 });
 
@@ -67,9 +67,9 @@ export type EnrollRequest = z.infer<typeof EnrollRequestSchema>;
 
 export const EnrollResponseSchema = z.object({
   success: z.boolean(),
-  speaker_id: z.string().optional(),
-  speaker_name: z.string().optional(),
-  embedding_count: z.number().optional(),
+  speakerId: z.string().optional(),
+  speakerName: z.string().optional(),
+  embeddingCount: z.number().optional(),
   message: z.string().optional(),
 });
 

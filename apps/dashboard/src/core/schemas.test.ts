@@ -83,8 +83,8 @@ describe('API Schemas', () => {
   describe('EnrollRequestSchema', () => {
     it('validates correct enroll request', () => {
       const result = EnrollRequestSchema.safeParse({
-        speaker_id: 'user001',
-        speaker_name: '张三',
+        speakerId: 'user001',
+        speakerName: '张三',
         audio: 'base64audiodata',
       });
       expect(result.success).toBe(true);
@@ -92,8 +92,8 @@ describe('API Schemas', () => {
 
     it('rejects empty speaker_id', () => {
       const result = EnrollRequestSchema.safeParse({
-        speaker_id: '',
-        speaker_name: '张三',
+        speakerId: '',
+        speakerName: '张三',
         audio: 'base64audiodata',
       });
       expect(result.success).toBe(false);
@@ -101,8 +101,8 @@ describe('API Schemas', () => {
 
     it('rejects missing audio', () => {
       const result = EnrollRequestSchema.safeParse({
-        speaker_id: 'user001',
-        speaker_name: '张三',
+        speakerId: 'user001',
+        speakerName: '张三',
       });
       expect(result.success).toBe(false);
     });

@@ -2,6 +2,86 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   ClawBody Design Tokens
+   Aesthetic: Linear/Raycast — sharp, dense, utilitarian
+   ============================================ */
+
 :root {
-  --radius: 0.5rem;
+  /* --- Radius --- */
+  --cb-radius-sm: 2px;
+  --cb-radius: 3px;
+  --cb-radius-md: 4px;
+
+  /* --- Typography --- */
+  --cb-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --cb-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* --- Surfaces --- */
+  --cb-surface-0: 8 8 12;        /* page background */
+  --cb-surface-1: 14 14 18;      /* card / panel */
+  --cb-surface-2: 22 22 26;      /* inset / input bg */
+  --cb-surface-3: 30 30 35;      /* hover / elevated */
+
+  /* --- Text --- */
+  --cb-text-1: 240 240 245;      /* primary: headings, values */
+  --cb-text-2: 180 180 190;      /* secondary: body, labels */
+  --cb-text-3: 110 110 120;      /* tertiary: hints, timestamps */
+
+  /* --- Borders --- */
+  --cb-border-1: 40 40 48;       /* card borders */
+  --cb-border-2: 30 30 36;       /* subtle dividers */
+
+  /* --- Accent --- */
+  --cb-accent: 99 102 241;       /* indigo-500 — interactive focus */
+  --cb-accent-text: 165 180 252; /* indigo-300 — accent text */
+
+  /* --- Status --- */
+  --cb-status-ok: 52 211 153;    /* emerald-400 */
+  --cb-status-warn: 251 191 36;  /* amber-400 */
+  --cb-status-error: 248 113 113;/* red-400 */
+  --cb-status-info: 96 165 250;  /* blue-400 */
+
+  /* --- Interactive --- */
+  --cb-interactive: 240 240 245; /* button text on filled */
+  --cb-interactive-bg: 52 211 153; /* primary action bg */
+
+  /* --- shadcn compat layer --- */
+  --radius: var(--cb-radius-md);
+  --background: var(--cb-surface-0);
+  --foreground: var(--cb-text-1);
+  --foreground-2: var(--cb-text-2);
+  --foreground-3: var(--cb-text-3);
+  --card: var(--cb-surface-1);
+  --card-foreground: var(--cb-text-2);
+  --popover: var(--cb-surface-1);
+  --popover-foreground: var(--cb-text-2);
+  --primary: var(--cb-text-1);
+  --primary-foreground: var(--cb-surface-0);
+  --secondary: var(--cb-surface-2);
+  --secondary-foreground: var(--cb-text-2);
+  --muted: var(--cb-surface-2);
+  --muted-foreground: var(--cb-text-3);
+  --accent: var(--cb-surface-3);
+  --accent-foreground: var(--cb-text-1);
+  --destructive: var(--cb-status-error);
+  --destructive-foreground: 255 255 255;
+  --border: var(--cb-border-1);
+  --border-subtle: var(--cb-border-2);
+  --input: var(--cb-surface-2);
+  --ring: var(--cb-accent);
+}
+
+@layer base {
+  * {
+    border-color: rgb(var(--border) / 0.4);
+  }
+
+  body {
+    font-family: var(--cb-font-sans);
+    background-color: rgb(var(--cb-surface-0));
+    color: rgb(var(--cb-text-2));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 }

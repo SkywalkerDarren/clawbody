@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SlidersHorizontal, Save } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useGatewayStore } from '@/core/store';
@@ -29,10 +30,13 @@ export function VADConfigCard() {
     return (
       <Card data-testid="vad-config-card">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">🎚️ VAD 配置</CardTitle>
+          <CardTitle className="flex items-center gap-1.5">
+            <SlidersHorizontal className="size-3.5 text-foreground-3" />
+            VAD
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">加载中...</p>
+          <p className="text-sm text-foreground-3">加载中...</p>
         </CardContent>
       </Card>
     );
@@ -41,11 +45,14 @@ export function VADConfigCard() {
   return (
     <Card data-testid="vad-config-card">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">🎚️ VAD 配置</CardTitle>
+        <CardTitle className="flex items-center gap-1.5">
+          <SlidersHorizontal className="size-3.5 text-foreground-3" />
+          VAD
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="space-y-2">
-          <label className="text-xs text-muted-foreground">
+          <label className="text-xs text-foreground-3">
             检测阈值 (0-1): {config.threshold.toFixed(2)}
           </label>
           <input
@@ -67,7 +74,7 @@ export function VADConfigCard() {
 
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div>
-            <label className="text-muted-foreground">最小语音时长 (ms)</label>
+            <label className="text-foreground-3">最小语音时长 (ms)</label>
             <input
               data-testid="vad-min-speech-input"
               type="number"
@@ -78,11 +85,11 @@ export function VADConfigCard() {
                   minSpeechDurationMs: parseInt(e.target.value) || 0,
                 }))
               }
-              className="w-full px-2 py-1 bg-muted border rounded mt-1"
+              className="w-full px-2 py-1 text-foreground-2 bg-secondary border border-border-subtle rounded-sm mt-1"
             />
           </div>
           <div>
-            <label className="text-muted-foreground">最小静音时长 (ms)</label>
+            <label className="text-foreground-3">最小静音时长 (ms)</label>
             <input
               data-testid="vad-min-silence-input"
               type="number"
@@ -93,13 +100,13 @@ export function VADConfigCard() {
                   minSilenceDurationMs: parseInt(e.target.value) || 0,
                 }))
               }
-              className="w-full px-2 py-1 bg-muted border rounded mt-1"
+              className="w-full px-2 py-1 text-foreground-2 bg-secondary border border-border-subtle rounded-sm mt-1"
             />
           </div>
         </div>
 
         <div className="text-xs">
-          <label className="text-muted-foreground">语音填充 (ms)</label>
+          <label className="text-foreground-3">语音填充 (ms)</label>
           <input
             data-testid="vad-speech-pad-input"
             type="number"
@@ -110,7 +117,7 @@ export function VADConfigCard() {
                 speechPadMs: parseInt(e.target.value) || 0,
               }))
             }
-            className="w-full px-2 py-1 bg-muted border rounded mt-1"
+            className="w-full px-2 py-1 text-foreground-2 bg-secondary border border-border-subtle rounded-sm mt-1"
           />
         </div>
 
@@ -120,7 +127,8 @@ export function VADConfigCard() {
           onClick={handleSave}
           disabled={updateMutation.isPending}
         >
-          保存配置
+          <Save className="size-3" />
+          保存
         </Button>
       </CardContent>
     </Card>

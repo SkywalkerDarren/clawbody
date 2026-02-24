@@ -1,3 +1,4 @@
+import { Zap, RotateCcw, ExternalLink, RefreshCw, Download } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useGatewayStore } from '@/core/store';
@@ -36,7 +37,10 @@ export function ActionsCard() {
   return (
     <Card data-testid="actions-card">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">⚡ 快捷操作</CardTitle>
+        <CardTitle className="flex items-center gap-1.5">
+          <Zap className="size-3.5 text-foreground-3" />
+          快捷操作
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 gap-2">
@@ -47,6 +51,7 @@ export function ActionsCard() {
             onClick={handleResetVAD}
             disabled={resetVADMutation.isPending}
           >
+            <RotateCcw className="size-3" />
             重置 VAD
           </Button>
           <Button
@@ -55,7 +60,8 @@ export function ActionsCard() {
             variant="secondary"
             onClick={() => window.open('/', '_blank')}
           >
-            打开 Live2D
+            <ExternalLink className="size-3" />
+            Live2D
           </Button>
           <Button
             data-testid="actions-refresh-btn"
@@ -63,7 +69,8 @@ export function ActionsCard() {
             variant="secondary"
             onClick={() => location.reload()}
           >
-            刷新页面
+            <RefreshCw className="size-3" />
+            刷新
           </Button>
           <Button
             data-testid="actions-export-btn"
@@ -71,7 +78,8 @@ export function ActionsCard() {
             variant="secondary"
             onClick={handleExportDiagnostics}
           >
-            导出诊断
+            <Download className="size-3" />
+            导出
           </Button>
         </div>
       </CardContent>

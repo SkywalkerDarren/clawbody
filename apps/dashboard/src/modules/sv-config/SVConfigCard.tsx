@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Shield, Save } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,10 +31,13 @@ export function SVConfigCard() {
     return (
       <Card data-testid="sv-config-card">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">🔐 SV 配置</CardTitle>
+          <CardTitle className="flex items-center gap-1.5">
+            <Shield className="size-3.5 text-foreground-3" />
+            SV
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">加载中...</p>
+          <p className="text-sm text-foreground-3">加载中...</p>
         </CardContent>
       </Card>
     );
@@ -42,11 +46,14 @@ export function SVConfigCard() {
   return (
     <Card data-testid="sv-config-card">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">🔐 SV 配置</CardTitle>
+        <CardTitle className="flex items-center gap-1.5">
+          <Shield className="size-3.5 text-foreground-3" />
+          SV
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="space-y-2">
-          <label className="text-xs text-muted-foreground">
+          <label className="text-xs text-foreground-3">
             验证阈值 (0-1): {config.threshold.toFixed(2)}
           </label>
           <input
@@ -64,7 +71,7 @@ export function SVConfigCard() {
             }
             className="w-full"
           />
-          <p className="text-xs text-muted-foreground">越高越严格，建议 0.5-0.7</p>
+          <p className="text-xs text-foreground-3">越高越严格，建议 0.5-0.7</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -79,7 +86,7 @@ export function SVConfigCard() {
                 applyVAD: e.target.checked,
               }))
             }
-            className="rounded"
+            className="rounded-sm"
           />
           <label htmlFor="applyVAD" className="text-sm">
             应用 VAD 预处理
@@ -95,7 +102,8 @@ export function SVConfigCard() {
           onClick={handleSave}
           disabled={updateMutation.isPending}
         >
-          保存配置
+          <Save className="size-3" />
+          保存
         </Button>
       </CardContent>
     </Card>

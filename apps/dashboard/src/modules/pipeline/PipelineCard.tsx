@@ -1,3 +1,4 @@
+import { Workflow, Play, Square } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,13 +31,25 @@ export function PipelineCard() {
   return (
     <Card data-testid="pipeline-card">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium">🎙️ Pipeline 控制</CardTitle>
+        <CardTitle className="flex items-center gap-1.5">
+          <Workflow className="size-3.5 text-foreground-3" />
+          Pipeline
+        </CardTitle>
         <Badge data-testid="pipeline-status-badge" variant={isEnabled ? 'default' : 'secondary'}>
           {isEnabled ? '已启用' : '已禁用'}
         </Badge>
       </CardHeader>
       <CardContent>
-        <p className="text-xs text-muted-foreground mb-4">VAD → SV → STT → OpenClaw</p>
+        <div className="flex items-center gap-1.5 mb-4">
+          {['VAD', 'SV', 'STT', 'OpenClaw'].map((step, i) => (
+            <div key={step} className="flex items-center gap-1.5">
+              <span className={`px-1.5 py-0.5 rounded-sm text-[11px] ${isEnabled ? 'bg-secondary text-foreground-2' : 'bg-secondary text-foreground-3'}`}>
+                {step}
+              </span>
+              {i < 3 && <span className="text-foreground-3/30 text-[11px]">→</span>}
+            </div>
+          ))}
+        </div>
         <div className="flex gap-2">
           <Button
             data-testid="pipeline-enable-btn"
@@ -44,6 +57,7 @@ export function PipelineCard() {
             onClick={handleEnable}
             disabled={isLoading || isEnabled}
           >
+            <Play className="size-3" />
             启用
           </Button>
           <Button
@@ -53,6 +67,7 @@ export function PipelineCard() {
             onClick={handleDisable}
             disabled={isLoading || !isEnabled}
           >
+            <Square className="size-3" />
             禁用
           </Button>
         </div>

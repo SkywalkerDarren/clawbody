@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Sparkles, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useGatewayStore } from '@/core/store';
@@ -37,23 +38,26 @@ export function Live2DCard() {
   return (
     <Card data-testid="live2d-card">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium">🎭 Live2D 控制</CardTitle>
+        <CardTitle className="flex items-center gap-1.5">
+          <Sparkles className="size-3.5 text-foreground-3" />
+          Live2D
+        </CardTitle>
         <Button
           data-testid="live2d-refresh-btn"
           size="sm"
           variant="ghost"
           onClick={() => refetch()}
         >
-          刷新
+          <RefreshCw className="size-3" />
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
         {!modelInfo ? (
-          <p className="text-sm text-muted-foreground">等待模型加载... (需要打开 Desktop)</p>
+          <p className="text-sm text-foreground-3">等待模型加载... (需要打开 Desktop)</p>
         ) : (
           <>
             <div>
-              <p className="text-xs text-muted-foreground mb-2">
+              <p className="text-xs text-foreground-3 mb-2">
                 表情 ({modelInfo.expressions.length})
               </p>
               <div data-testid="live2d-expressions" className="flex flex-wrap gap-1">
@@ -71,7 +75,7 @@ export function Live2DCard() {
                   </Button>
                 ))}
                 {modelInfo.expressions.length > 8 && (
-                  <span className="text-xs text-muted-foreground self-center">
+                  <span className="text-xs text-foreground-3 self-center">
                     +{modelInfo.expressions.length - 8}
                   </span>
                 )}
@@ -79,7 +83,7 @@ export function Live2DCard() {
             </div>
 
             <div>
-              <p className="text-xs text-muted-foreground mb-2">
+              <p className="text-xs text-foreground-3 mb-2">
                 动作 ({Object.keys(modelInfo.motions).length} 组)
               </p>
               <div data-testid="live2d-motions" className="flex flex-wrap gap-1">
@@ -99,7 +103,7 @@ export function Live2DCard() {
                     </Button>
                   ))}
                 {Object.keys(modelInfo.motions).length > 6 && (
-                  <span className="text-xs text-muted-foreground self-center">
+                  <span className="text-xs text-foreground-3 self-center">
                     +{Object.keys(modelInfo.motions).length - 6}
                   </span>
                 )}

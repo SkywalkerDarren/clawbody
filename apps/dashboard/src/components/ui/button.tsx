@@ -6,45 +6,29 @@ import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
   [
-    'inline-flex items-center justify-center gap-2 whitespace-nowrap',
-    'rounded-lg text-sm font-medium',
-    'transition-all duration-150 ease-out',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950',
-    'disabled:pointer-events-none disabled:opacity-40',
-    'active:scale-[0.98] active:translate-y-[1px]',
-    '[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+    'inline-flex items-center justify-center gap-1.5 whitespace-nowrap',
+    'rounded-sm text-[13px] font-medium',
+    'transition-colors duration-100',
+    'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
+    'disabled:pointer-events-none disabled:opacity-35',
+    'cursor-pointer',
+    '[&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0',
   ].join(' '),
   {
     variants: {
       variant: {
-        default: [
-          'bg-emerald-600 text-zinc-50',
-          'hover:bg-emerald-500',
-          'shadow-sm shadow-emerald-900/20',
-        ].join(' '),
-        destructive: [
-          'bg-red-600/90 text-zinc-50',
-          'hover:bg-red-500',
-        ].join(' '),
-        outline: [
-          'border border-zinc-700 bg-transparent text-zinc-300',
-          'hover:bg-zinc-800 hover:text-zinc-100 hover:border-zinc-600',
-        ].join(' '),
-        secondary: [
-          'bg-zinc-800 text-zinc-300',
-          'hover:bg-zinc-700 hover:text-zinc-100',
-        ].join(' '),
-        ghost: [
-          'text-zinc-400',
-          'hover:bg-zinc-800/50 hover:text-zinc-200',
-        ].join(' '),
-        link: 'text-emerald-400 underline-offset-4 hover:underline hover:text-emerald-300',
+        default: 'bg-foreground text-background hover:bg-foreground/90',
+        destructive: 'bg-status-error/90 text-white hover:bg-status-error',
+        outline: 'border border-border/60 bg-transparent text-foreground-2 hover:bg-secondary hover:text-foreground',
+        secondary: 'bg-secondary text-foreground-2 hover:bg-accent hover:text-foreground',
+        ghost: 'text-foreground-3 hover:bg-secondary hover:text-foreground-2',
+        link: 'text-foreground-2 underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-9 px-4 py-2',
-        sm: 'h-7 rounded-md px-2.5 text-xs',
-        lg: 'h-11 rounded-lg px-6',
-        icon: 'h-9 w-9',
+        default: 'h-8 px-3',
+        sm: 'h-6 px-2 text-[11px]',
+        lg: 'h-9 px-4',
+        icon: 'h-8 w-8',
       },
     },
     defaultVariants: {

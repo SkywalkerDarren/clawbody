@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Users, ShieldCheck, UserPlus, RefreshCw, Plus, Trash2, Mic, Square } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,15 +30,15 @@ export function SpeakersCard() {
     if (mode === 'enroll' || mode === 'append') {
       enrollMutation.mutate(
         {
-          speaker_id: speakerId,
-          speaker_name: speakerName,
+          speakerId,
+          speakerName,
           audio: audioBase64,
         },
         {
           onSuccess: (data) => {
             if (data.success) {
               const action = mode === 'append' ? '追加' : '注册';
-              addLog('info', `${action}成功: ${speakerName} (${speakerId}) - ${data.embedding_count ?? 1} 声纹`);
+              addLog('info', `${action}成功: ${speakerName} (${speakerId}) - ${data.embeddingCount ?? 1} 声纹`);
               if (mode === 'enroll') {
                 setSpeakerId('');
                 setSpeakerName('');
@@ -59,10 +60,10 @@ export function SpeakersCard() {
           setVerifyResult({
             verified: data.verified,
             confidence: data.confidence,
-            speakerName: data.speaker_name ?? undefined,
+            speakerName: data.speakerName ?? undefined,
           });
           if (data.verified) {
-            addLog('info', `验证通过: ${data.speaker_name} (置信度: ${(data.confidence * 100).toFixed(1)}%)`);
+            addLog('info', `验证通过: ${data.speakerName} (置信度: ${(data.confidence * 100).toFixed(1)}%)`);
           } else {
             addLog('warn', `验证失败: 置信度 ${(data.confidence * 100).toFixed(1)}% < 阈值 ${(data.threshold * 100).toFixed(1)}%`);
           }
@@ -115,7 +116,10 @@ export function SpeakersCard() {
   return (
     <Card data-testid="speakers-card">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium">👤 说话人管理</CardTitle>
+        <CardTitle className="flex items-center gap-1.5">
+          <Users className="size-3.5 text-foreground-3" />
+          说话人
+        </CardTitle>
         <div className="flex gap-1">
           <Button
             data-testid="speakers-verify-btn"
@@ -124,6 +128,7 @@ export function SpeakersCard() {
             onClick={handleVerify}
             disabled={mode !== 'idle'}
           >
+            <ShieldCheck className="size-3" />
             测试
           </Button>
           <Button
@@ -132,7 +137,7 @@ export function SpeakersCard() {
             variant="ghost"
             onClick={() => setMode(mode === 'idle' ? 'enroll' : 'idle')}
           >
-            {mode !== 'idle' ? '取消' : '注册'}
+            {mode !== 'idle' ? '取消' : <><UserPlus className="size-3" /> 注册</>}
           </Button>
           <Button
             data-testid="speakers-refresh-btn"
@@ -141,19 +146,19 @@ export function SpeakersCard() {
             onClick={() => refetch()}
             disabled={isLoading}
           >
-            刷新
+            <RefreshCw className="size-3" />
           </Button>
         </div>
       </CardHeader>
       <CardContent>
         {/* Microphone Selection */}
         <div className="mb-3 flex items-center gap-2">
-          <label className="text-xs text-muted-foreground">麦克风:</label>
+          <label className="text-xs text-foreground-3">麦克风:</label>
           <select
             data-testid="speakers-device-select"
             value={selectedDeviceId}
             onChange={(e) => setSelectedDeviceId(e.target.value)}
-            className="flex-1 px-2 py-1 text-xs bg-muted border rounded"
+            className="flex-1 px-2 py-1 text-xs text-foreground-2 bg-secondary border border-border-subtle rounded-sm"
             disabled={recordingState !== 'idle'}
           >
             <option value="">默认设备</option>
@@ -163,8 +168,8 @@ export function SpeakersCard() {
               </option>
             ))}
           </select>
-          <Button size="sm" variant="ghost" onClick={refreshDevices} className="h-6 px-2">
-            🔄
+          <Button size="sm" variant="ghost" onClick={refreshDevices} className="h-6 px-2 text-xs">
+            <RefreshCw className="size-3" />
           </Button>
         </div>
 
@@ -172,7 +177,7 @@ export function SpeakersCard() {
         {mode === 'enroll' && (
           <div
             data-testid="speakers-enroll-form"
-            className="mb-4 p-3 bg-muted rounded-md space-y-3"
+            className="mb-4 pt-3 border-t border-border-subtle space-y-3"
           >
             <div className="grid grid-cols-2 gap-2">
               <input
@@ -181,7 +186,7 @@ export function SpeakersCard() {
                 placeholder="说话人 ID"
                 value={speakerId}
                 onChange={(e) => setSpeakerId(e.target.value)}
-                className="px-2 py-1 text-sm bg-background border rounded"
+                className="px-2 py-1 text-sm text-foreground-2 bg-secondary border border-border-subtle rounded-sm placeholder:text-foreground-3/50"
                 disabled={recordingState !== 'idle'}
               />
               <input
@@ -190,7 +195,7 @@ export function SpeakersCard() {
                 placeholder="说话人名称"
                 value={speakerName}
                 onChange={(e) => setSpeakerName(e.target.value)}
-                className="px-2 py-1 text-sm bg-background border rounded"
+                className="px-2 py-1 text-sm text-foreground-2 bg-secondary border border-border-subtle rounded-sm placeholder:text-foreground-3/50"
                 disabled={recordingState !== 'idle'}
               />
             </div>
@@ -201,7 +206,8 @@ export function SpeakersCard() {
                   size="sm"
                   onClick={handleStartRecording}
                 >
-                  🎤 开始录音
+                  <Mic className="size-3" />
+                  开始录音
                 </Button>
               ) : recordingState === 'recording' ? (
                 <>
@@ -211,7 +217,8 @@ export function SpeakersCard() {
                     variant="destructive"
                     onClick={stopRecording}
                   >
-                    ⏹ 停止 ({recordingTime}s)
+                    <Square className="size-3" />
+                    停止 ({recordingTime}s)
                   </Button>
                   <Badge variant="destructive" className="animate-pulse">
                     录音中
@@ -220,26 +227,28 @@ export function SpeakersCard() {
               ) : (
                 <Badge variant="secondary">处理中...</Badge>
               )}
-              <span className="text-xs text-muted-foreground">建议录制 3-5 秒</span>
+              <span className="text-xs text-foreground-3">建议录制 3-5 秒</span>
             </div>
           </div>
         )}
 
         {/* Append Form */}
         {mode === 'append' && (
-          <div className="mb-4 p-3 bg-muted border border-border rounded-md space-y-3">
-            <p className="text-sm text-foreground">
+          <div className="mb-4 pt-3 border-t border-border-subtle space-y-3">
+            <p className="text-sm text-foreground-2">
               追加声纹: <strong>{speakerName}</strong> ({speakerId})
             </p>
             <div className="flex items-center gap-2">
               {recordingState === 'idle' ? (
                 <Button size="sm" onClick={handleStartRecording}>
-                  🎤 录制追加音频
+                  <Mic className="size-3" />
+                  录制追加音频
                 </Button>
               ) : recordingState === 'recording' ? (
                 <>
                   <Button size="sm" variant="destructive" onClick={stopRecording}>
-                    ⏹ 停止 ({recordingTime}s)
+                    <Square className="size-3" />
+                    停止 ({recordingTime}s)
                   </Button>
                   <Badge variant="destructive" className="animate-pulse">
                     录音中
@@ -257,17 +266,19 @@ export function SpeakersCard() {
 
         {/* Verify Form */}
         {mode === 'verify' && (
-          <div className="mb-4 p-3 bg-muted border border-border rounded-md space-y-3">
-            <p className="text-sm font-medium text-foreground">测试说话人验证</p>
+          <div className="mb-4 pt-3 border-t border-border-subtle space-y-3">
+            <p className="text-sm font-medium text-foreground-2">测试说话人验证</p>
             <div className="flex items-center gap-2">
               {recordingState === 'idle' ? (
                 <Button size="sm" onClick={handleStartRecording}>
-                  🎤 录制测试音频
+                  <Mic className="size-3" />
+                  录制测试音频
                 </Button>
               ) : recordingState === 'recording' ? (
                 <>
                   <Button size="sm" variant="destructive" onClick={stopRecording}>
-                    ⏹ 停止 ({recordingTime}s)
+                    <Square className="size-3" />
+                    停止 ({recordingTime}s)
                   </Button>
                   <Badge variant="destructive" className="animate-pulse">
                     录音中
@@ -281,14 +292,14 @@ export function SpeakersCard() {
               </Button>
             </div>
             {verifyResult && (
-              <div className="mt-2 p-2 rounded bg-background border border-border">
+              <div className="mt-2 pt-2 border-t border-border-subtle">
                 {verifyResult.verified ? (
-                  <div className="text-emerald-500">
-                    ✓ 验证通过: {verifyResult.speakerName} ({(verifyResult.confidence * 100).toFixed(1)}%)
+                  <div className="text-status-ok">
+                    验证通过: {verifyResult.speakerName} ({(verifyResult.confidence * 100).toFixed(1)}%)
                   </div>
                 ) : (
-                  <div className="text-destructive">
-                    ✗ 验证失败 (置信度: {(verifyResult.confidence * 100).toFixed(1)}%)
+                  <div className="text-status-error">
+                    验证失败 (置信度: {(verifyResult.confidence * 100).toFixed(1)}%)
                   </div>
                 )}
               </div>
@@ -298,17 +309,17 @@ export function SpeakersCard() {
 
         <div data-testid="speakers-list" className="space-y-2">
           {speakers.length === 0 ? (
-            <p className="text-sm text-muted-foreground">暂无注册说话人</p>
+            <p className="text-sm text-foreground-3">暂无注册说话人</p>
           ) : (
             speakers.map((s) => (
               <div
                 key={s.id}
                 data-testid={`speaker-item-${s.id}`}
-                className="flex items-center justify-between bg-muted rounded px-3 py-2"
+                className="flex items-center justify-between rounded-sm px-3 py-2 border border-border-subtle"
               >
                 <div>
-                  <span className="font-medium text-sm">{s.name}</span>
-                  <span className="text-xs text-muted-foreground ml-2">({s.id})</span>
+                  <span className="font-medium text-sm text-foreground-2">{s.name}</span>
+                  <span className="text-xs text-foreground-3 ml-2">({s.id})</span>
                   {s.embeddingCount !== undefined && (
                     <Badge variant="secondary" className="ml-2 text-xs">
                       {s.embeddingCount} 声纹
@@ -324,15 +335,17 @@ export function SpeakersCard() {
                     onClick={() => handleAppend(s)}
                     disabled={mode !== 'idle'}
                   >
+                    <Plus className="size-3" />
                     追加
                   </Button>
                   <Button
                     data-testid={`speaker-delete-btn-${s.id}`}
                     size="sm"
                     variant="ghost"
-                    className="text-destructive hover:text-destructive h-6 px-2"
+                    className="text-status-error hover:text-status-error/80 h-6 px-2"
                     onClick={() => handleDelete(s.id)}
                   >
+                    <Trash2 className="size-3" />
                     删除
                   </Button>
                 </div>

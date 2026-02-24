@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Volume2, Play, Radio } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useGatewayStore } from '@/core/store';
@@ -65,7 +66,10 @@ export function TTSCard() {
   return (
     <Card data-testid="tts-card">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">🔊 TTS 测试</CardTitle>
+        <CardTitle className="flex items-center gap-1.5">
+          <Volume2 className="size-3.5 text-foreground-3" />
+          TTS
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <textarea
@@ -73,7 +77,7 @@ export function TTSCard() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="输入要合成的文本..."
-          className="w-full h-16 px-3 py-2 text-sm bg-muted border rounded-md resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full h-16 px-3 py-2 text-sm text-foreground-2 bg-secondary border border-border-subtle rounded-sm resize-none font-sans placeholder:text-foreground-3/50 focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <div className="flex gap-2">
           <Button
@@ -82,6 +86,7 @@ export function TTSCard() {
             onClick={handleSpeak}
             disabled={isLoading || !text.trim()}
           >
+            <Play className="size-3" />
             播放
           </Button>
           <Button
@@ -91,11 +96,12 @@ export function TTSCard() {
             onClick={handleStream}
             disabled={isLoading || !text.trim()}
           >
-            流式播放
+            <Radio className="size-3" />
+            流式
           </Button>
         </div>
         {status && (
-          <p data-testid="tts-status" className="text-xs text-muted-foreground">
+          <p data-testid="tts-status" className="text-xs text-foreground-3">
             {status}
           </p>
         )}

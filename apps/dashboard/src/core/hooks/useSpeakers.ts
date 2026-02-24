@@ -34,8 +34,8 @@ export function useEnrollSpeaker() {
 // Verify speaker schema
 const VerifyResponseSchema = z.object({
   verified: z.boolean(),
-  speaker_id: z.string().nullable().optional(),
-  speaker_name: z.string().nullable().optional(),
+  speakerId: z.string().nullable().optional(),
+  speakerName: z.string().nullable().optional(),
   confidence: z.number(),
   threshold: z.number(),
 });

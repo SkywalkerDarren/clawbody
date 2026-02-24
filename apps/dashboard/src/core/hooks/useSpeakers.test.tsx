@@ -72,9 +72,9 @@ describe('useSpeakers hooks', () => {
         json: () =>
           Promise.resolve({
             success: true,
-            speaker_id: 'user001',
-            speaker_name: 'Test User',
-            embedding_count: 1,
+            speakerId: 'user001',
+            speakerName: 'Test User',
+            embeddingCount: 1,
           }),
       });
 
@@ -83,8 +83,8 @@ describe('useSpeakers hooks', () => {
       });
 
       result.current.mutate({
-        speaker_id: 'user001',
-        speaker_name: 'Test User',
+        speakerId: 'user001',
+        speakerName: 'Test User',
         audio: 'base64audio',
       });
 
@@ -95,8 +95,8 @@ describe('useSpeakers hooks', () => {
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({
-            speaker_id: 'user001',
-            speaker_name: 'Test User',
+            speakerId: 'user001',
+            speakerName: 'Test User',
             audio: 'base64audio',
           }),
         })
