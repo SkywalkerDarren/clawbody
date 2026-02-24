@@ -227,8 +227,8 @@ export function SpeakersCard() {
 
         {/* Append Form */}
         {mode === 'append' && (
-          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-md space-y-3">
-            <p className="text-sm">
+          <div className="mb-4 p-3 bg-muted border border-border rounded-md space-y-3">
+            <p className="text-sm text-foreground">
               追加声纹: <strong>{speakerName}</strong> ({speakerId})
             </p>
             <div className="flex items-center gap-2">
@@ -257,8 +257,8 @@ export function SpeakersCard() {
 
         {/* Verify Form */}
         {mode === 'verify' && (
-          <div className="mb-4 p-3 bg-green-50 dark:bg-green-950 rounded-md space-y-3">
-            <p className="text-sm font-medium">测试说话人验证</p>
+          <div className="mb-4 p-3 bg-muted border border-border rounded-md space-y-3">
+            <p className="text-sm font-medium text-foreground">测试说话人验证</p>
             <div className="flex items-center gap-2">
               {recordingState === 'idle' ? (
                 <Button size="sm" onClick={handleStartRecording}>
@@ -281,13 +281,13 @@ export function SpeakersCard() {
               </Button>
             </div>
             {verifyResult && (
-              <div className="mt-2 p-2 rounded bg-background">
+              <div className="mt-2 p-2 rounded bg-background border border-border">
                 {verifyResult.verified ? (
-                  <div className="text-green-600 dark:text-green-400">
+                  <div className="text-emerald-500">
                     ✓ 验证通过: {verifyResult.speakerName} ({(verifyResult.confidence * 100).toFixed(1)}%)
                   </div>
                 ) : (
-                  <div className="text-red-600 dark:text-red-400">
+                  <div className="text-destructive">
                     ✗ 验证失败 (置信度: {(verifyResult.confidence * 100).toFixed(1)}%)
                   </div>
                 )}
