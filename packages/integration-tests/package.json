@@ -1,8 +1,8 @@
 {
-  "name": "@clawbody/integration-tests",
+  "name": "@clawbody/unit-tests",
   "version": "1.0.0",
   "private": true,
-  "description": "ClawBody 集成测试",
+  "description": "ClawBody 单元测试",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",

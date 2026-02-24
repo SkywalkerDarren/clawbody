@@ -51,7 +51,7 @@ describe('TTSCapability', () => {
       expect(capability.status).toBe('ready');
     });
 
-    it('should set status to unavailable when no providers available', async () => {
+    it('should set status to ready even when provider not yet available (checked at runtime)', async () => {
       const unavailableProvider = createMockProvider('unavailable', {
         isAvailable: vi.fn().mockResolvedValue(false),
       });
@@ -66,7 +66,8 @@ describe('TTSCapability', () => {
         },
       });
 
-      expect(cap.status).toBe('unavailable');
+      // Provider is registered even if not available (availability checked at runtime)
+      expect(cap.status).toBe('ready');
     });
 
     it('should skip unknown provider types', async () => {
@@ -107,12 +108,13 @@ describe('TTSCapability', () => {
   });
 
   describe('getOperations', () => {
-    it('should return speak, synthesize, and listVoices operations', () => {
+    it('should return speak, synthesize, synthesizeStream, and listVoices operations', () => {
       const ops = capability.getOperations();
 
-      expect(ops).toHaveLength(3);
+      expect(ops).toHaveLength(4);
       expect(ops.map((o) => o.name)).toContain('speak');
       expect(ops.map((o) => o.name)).toContain('synthesize');
+      expect(ops.map((o) => o.name)).toContain('synthesizeStream');
       expect(ops.map((o) => o.name)).toContain('listVoices');
     });
   });

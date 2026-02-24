@@ -69,10 +69,11 @@ describe('VisionCapability', () => {
   });
 
   describe('getOperations', () => {
-    it('should return screenshot operation', () => {
+    it('should return screenshot and getDesktopInfo operations', () => {
       const ops = capability.getOperations();
-      expect(ops).toHaveLength(1);
+      expect(ops).toHaveLength(2);
       expect(ops[0]?.name).toBe('screenshot');
+      expect(ops[1]?.name).toBe('getDesktopInfo');
     });
   });
 
