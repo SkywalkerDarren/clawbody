@@ -2,25 +2,16 @@ import { useEffect } from 'react';
 import { useModuleRegistry } from '@/core/module';
 import { useGatewayStore } from '@/core/store';
 import { useSSE } from '@/core/useSSE';
-import { apiGet } from '@/core/api';
+import { usePipelineStatus } from '@/core/hooks';
 import { modules } from '@/modules';
-import { Badge } from '@/components/ui/badge';
 
 function App() {
   const { register, getAll } = useModuleRegistry();
-  const { sseConnected, diagnostics } = useGatewayStore();
+  const { sseConnected } = useGatewayStore();
+  const { data: pipelineStatus } = usePipelineStatus();
 
   // Connect SSE
   useSSE('/api/events');
-
-  // Fetch initial pipeline status
-  useEffect(() => {
-    apiGet<{ enabled: boolean }>('/pipeline').then((result) => {
-      if (result.success && result.data) {
-        useGatewayStore.getState().setPipelineEnabled(result.data.enabled);
-      }
-    });
-  }, []);
 
   // Register all modules
   useEffect(() => {
@@ -40,59 +31,90 @@ function App() {
   const eventsModule = registeredModules.find((m) => m.meta.id === 'events');
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <div className="container mx-auto px-4 py-6 max-w-6xl">
+    <div className="min-h-[100dvh] bg-zinc-950 text-zinc-100">
+      <div className="mx-auto max-w-6xl px-4 py-8">
         {/* Header */}
-        <header className="mb-8">
+        <header className="mb-10">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">ClawBody Dashboard</h1>
-              <p className="text-gray-400 text-sm mt-1">Gateway: http://localhost:4000</p>
+              <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">
+                ClawBody Dashboard
+              </h1>
+              <p className="mt-1 text-sm text-zinc-500">
+                Gateway: localhost:4000
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={sseConnected ? 'default' : 'destructive'}>
-                {sseConnected ? 'Connected' : 'Disconnected'}
-              </Badge>
-              {diagnostics && (
-                <span className="text-xs text-gray-500">Uptime: {diagnostics.gateway.uptime}s</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span
+                  data-testid="sse-indicator"
+                  className={`h-2 w-2 rounded-full ${
+                    sseConnected ? 'bg-emerald-500' : 'bg-red-500'
+                  }`}
+                />
+                <span className="text-xs text-zinc-500">
+                  {sseConnected ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
+              {pipelineStatus && (
+                <div
+                  data-testid="pipeline-indicator"
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    pipelineStatus.enabled
+                      ? 'bg-emerald-500/10 text-emerald-400'
+                      : 'bg-zinc-800 text-zinc-400'
+                  }`}
+                >
+                  Pipeline {pipelineStatus.enabled ? 'ON' : 'OFF'}
+                </div>
               )}
             </div>
           </div>
         </header>
 
-        {/* Control + Monitor modules - 2 columns */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {controlModules.map((module) => (
-            <module.Component key={module.meta.id} />
-          ))}
-          {monitorModules.map((module) => (
-            <module.Component key={module.meta.id} />
-          ))}
-        </div>
-
-        {/* Test modules - 2 columns */}
-        {testModules.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {testModules.map((module) => (
+        {/* Control + Monitor modules */}
+        <section className="mb-8">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {controlModules.map((module) => (
+              <module.Component key={module.meta.id} />
+            ))}
+            {monitorModules.map((module) => (
               <module.Component key={module.meta.id} />
             ))}
           </div>
+        </section>
+
+        {/* Test modules */}
+        {testModules.length > 0 && (
+          <section className="mb-8">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {testModules.map((module) => (
+                <module.Component key={module.meta.id} />
+              ))}
+            </div>
+          </section>
         )}
 
-        {/* Settings modules - 2 columns */}
+        {/* Settings modules */}
         {settingsModules.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {settingsModules.map((module) => (
-              <module.Component key={module.meta.id} />
-            ))}
-          </div>
+          <section className="mb-8">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {settingsModules.map((module) => (
+                <module.Component key={module.meta.id} />
+              ))}
+            </div>
+          </section>
         )}
 
         {/* Events - full width */}
-        {eventsModule && <eventsModule.Component />}
+        {eventsModule && (
+          <section className="mb-8">
+            <eventsModule.Component />
+          </section>
+        )}
 
         {/* Footer */}
-        <footer className="mt-8 text-center text-gray-500 text-xs">
+        <footer className="border-t border-zinc-800 pt-6 text-center text-xs text-zinc-600">
           ClawBody Gateway Dashboard
         </footer>
       </div>
