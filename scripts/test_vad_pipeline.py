@@ -11,6 +11,7 @@
 import sys
 import base64
 import time
+import atexit
 
 try:
     import numpy as np
@@ -44,6 +45,27 @@ def check_services():
         return False
 
 
+def enable_pipeline():
+    """启用 VAD → SV → STT → OpenClaw 链路"""
+    try:
+        r = httpx.post(f"{GATEWAY_URL}/api/pipeline/enable", timeout=5)
+        r.raise_for_status()
+        print("✅ Pipeline 已启用")
+        return True
+    except Exception as e:
+        print(f"❌ 启用 Pipeline 失败: {e}")
+        return False
+
+
+def disable_pipeline():
+    """禁用链路"""
+    try:
+        httpx.post(f"{GATEWAY_URL}/api/pipeline/disable", timeout=5)
+        print("\n🔇 Pipeline 已禁用")
+    except Exception:
+        pass
+
+
 def process_vad_via_gateway(audio_chunk: np.ndarray) -> dict:
     """通过 Gateway 发送音频块到 VAD (会自动触发 SV → STT → OpenClaw)"""
     pcm = (audio_chunk * 32767).astype(np.int16).tobytes()
@@ -75,6 +97,13 @@ def main():
     if not check_services():
         print("\n❌ Gateway 未就绪，请先启动: ./scripts/start.sh")
         sys.exit(1)
+
+    # 启用 Pipeline
+    if not enable_pipeline():
+        sys.exit(1)
+
+    # 退出时禁用 Pipeline
+    atexit.register(disable_pipeline)
 
     print("\n" + "=" * 60)
     print("说话时会自动检测并转录")
