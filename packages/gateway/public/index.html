@@ -544,6 +544,145 @@
 
     loadModel();
     connectSSE();
+
+    // ========== Audio Capture for VAD Pipeline ==========
+    const VAD_SAMPLE_RATE = 16000;
+    let vadAudioContext = null;
+    let vadMediaStream = null;
+    let vadProcessor = null;
+    let vadAudioBuffer = [];
+    let vadSendInterval = null;
+    let vadEnabled = false;
+
+    async function startVADCapture() {
+      if (vadEnabled) return;
+
+      try {
+        vadMediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            sampleRate: VAD_SAMPLE_RATE,
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
+        });
+
+        vadAudioContext = new AudioContext({ sampleRate: VAD_SAMPLE_RATE });
+        const source = vadAudioContext.createMediaStreamSource(vadMediaStream);
+
+        // ScriptProcessor for audio capture
+        vadProcessor = vadAudioContext.createScriptProcessor(4096, 1, 1);
+        vadProcessor.onaudioprocess = (event) => {
+          if (!vadEnabled) return;
+          const inputData = event.inputBuffer.getChannelData(0);
+          vadAudioBuffer.push(new Float32Array(inputData));
+        };
+
+        source.connect(vadProcessor);
+        vadProcessor.connect(vadAudioContext.destination);
+
+        vadEnabled = true;
+
+        // Send audio every 100ms
+        vadSendInterval = setInterval(sendAudioToVAD, 100);
+
+        console.log('[vad-capture] Started');
+        setStatus('✓ Ready | VAD ON');
+      } catch (err) {
+        console.error('[vad-capture] Failed:', err);
+      }
+    }
+
+    function stopVADCapture() {
+      if (!vadEnabled) return;
+
+      vadEnabled = false;
+
+      if (vadSendInterval) {
+        clearInterval(vadSendInterval);
+        vadSendInterval = null;
+      }
+
+      if (vadProcessor) {
+        vadProcessor.disconnect();
+        vadProcessor = null;
+      }
+
+      if (vadMediaStream) {
+        vadMediaStream.getTracks().forEach(t => t.stop());
+        vadMediaStream = null;
+      }
+
+      if (vadAudioContext) {
+        vadAudioContext.close();
+        vadAudioContext = null;
+      }
+
+      vadAudioBuffer = [];
+      console.log('[vad-capture] Stopped');
+      setStatus('✓ Ready | VAD OFF');
+    }
+
+    async function sendAudioToVAD() {
+      if (vadAudioBuffer.length === 0) return;
+
+      // Concatenate buffered audio
+      const totalLength = vadAudioBuffer.reduce((sum, buf) => sum + buf.length, 0);
+      const combined = new Float32Array(totalLength);
+      let offset = 0;
+      for (const buf of vadAudioBuffer) {
+        combined.set(buf, offset);
+        offset += buf.length;
+      }
+      vadAudioBuffer = [];
+
+      // Convert Float32 to Int16 PCM
+      const pcmData = new Int16Array(combined.length);
+      for (let i = 0; i < combined.length; i++) {
+        const s = Math.max(-1, Math.min(1, combined[i]));
+        pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+
+      // Convert to base64
+      const uint8Array = new Uint8Array(pcmData.buffer);
+      let binary = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      const audioBase64 = btoa(binary);
+
+      // Send to VAD
+      try {
+        await fetch('/api/vad/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audio: audioBase64 }),
+        });
+      } catch (err) {
+        // Ignore errors
+      }
+    }
+
+    // Check pipeline status and auto-start/stop VAD capture
+    async function checkPipelineStatus() {
+      try {
+        const res = await fetch('/api/pipeline');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.enabled && !vadEnabled) {
+            startVADCapture();
+          } else if (!data.enabled && vadEnabled) {
+            stopVADCapture();
+          }
+        }
+      } catch (err) {
+        // Gateway not ready
+      }
+    }
+
+    // Initial check and poll every 5s
+    checkPipelineStatus();
+    setInterval(checkPipelineStatus, 5000);
   </script>
 </body>
 </html>
