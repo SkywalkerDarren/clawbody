@@ -130,7 +130,7 @@ uv run --with sounddevice --with numpy --with httpx python scripts/test_vad_pipe
 
 ## Dashboard
 
-Access the web dashboard at: http://localhost:4000/dashboard.html
+Access the web dashboard at: http://localhost:4000/dashboard/
 
 Features:
 - Pipeline enable/disable control
@@ -138,6 +138,13 @@ Features:
 - Speaker management
 - TTS testing
 - Real-time event log
+
+Development:
+```bash
+cd apps/dashboard
+pnpm dev      # Dev server at :5173 (proxies to :4000)
+pnpm build    # Build to packages/gateway/public/dashboard/
+```
 
 ## Configuration
 
