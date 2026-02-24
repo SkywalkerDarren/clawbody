@@ -191,6 +191,102 @@ export class HttpServer {
       send(res, 200, { capabilities });
     });
 
+    // GET /api/diagnostics - 启动自检，检测所有服务状态
+    this.app.get('/api/diagnostics', async (_req: Request, res: Response) => {
+      const diagnostics: {
+        gateway: { status: string; uptime: number };
+        services: Record<string, { status: string; message?: string; latency?: number }>;
+        openclaw: { status: string; message?: string };
+        overall: string;
+      } = {
+        gateway: {
+          status: 'ok',
+          uptime: Math.floor((Date.now() - this.startTime) / 1000),
+        },
+        services: {},
+        openclaw: { status: 'unknown' },
+        overall: 'ok',
+      };
+
+      // 检查各能力服务
+      const serviceChecks = [
+        { name: 'tts', capability: 'tts', action: 'getConfig' },
+        { name: 'stt', capability: 'stt', action: 'listLanguages' },
+        { name: 'vad', capability: 'vad', action: 'getConfig' },
+        { name: 'speaker-verification', capability: 'speaker-verification', action: 'getConfig' },
+        { name: 'vision', capability: 'vision', action: 'getDesktopInfo' },
+        { name: 'live2d', capability: 'live2d', action: 'getState' },
+      ];
+
+      for (const check of serviceChecks) {
+        const cap = this.registry.get(check.capability);
+        if (!cap) {
+          diagnostics.services[check.name] = { status: 'not_registered' };
+          continue;
+        }
+
+        const startTime = Date.now();
+        try {
+          await cap.execute(check.action, {});
+          diagnostics.services[check.name] = {
+            status: 'ok',
+            latency: Date.now() - startTime,
+          };
+        } catch (err) {
+          diagnostics.services[check.name] = {
+            status: 'error',
+            message: err instanceof Error ? err.message : String(err),
+            latency: Date.now() - startTime,
+          };
+          diagnostics.overall = 'degraded';
+        }
+      }
+
+      // 检查 OpenClaw 连接
+      if (this.openclawConfig?.webhookUrl) {
+        try {
+          const startTime = Date.now();
+          const healthUrl = `${this.openclawConfig.webhookUrl}/health`;
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 3000);
+
+          const response = await fetch(healthUrl, { signal: controller.signal });
+          clearTimeout(timeout);
+
+          if (response.ok) {
+            diagnostics.openclaw = {
+              status: 'ok',
+              message: `Connected to ${this.openclawConfig.webhookUrl}`,
+            };
+          } else {
+            diagnostics.openclaw = {
+              status: 'error',
+              message: `HTTP ${response.status}`,
+            };
+            diagnostics.overall = 'degraded';
+          }
+        } catch (err) {
+          diagnostics.openclaw = {
+            status: 'error',
+            message: err instanceof Error ? err.message : 'Connection failed',
+          };
+          // OpenClaw 不可用不影响整体状态，只是功能受限
+        }
+      } else {
+        diagnostics.openclaw = { status: 'not_configured' };
+      }
+
+      // 判断整体状态
+      const errorCount = Object.values(diagnostics.services).filter(
+        (s) => s.status === 'error'
+      ).length;
+      if (errorCount > 2) {
+        diagnostics.overall = 'critical';
+      }
+
+      send(res, 200, diagnostics);
+    });
+
     // POST /api/speak - 简化的说话接口，Brain 只需传文本
     this.app.post('/api/speak', async (req: Request, res: Response) => {
       const { text, emotion } = req.body as { text: string; emotion?: string };

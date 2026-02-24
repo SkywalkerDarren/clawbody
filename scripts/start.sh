@@ -222,6 +222,7 @@ show_help() {
     echo "  --restart       重启服务"
     echo "  --force, -f     强制重启 (与 --restart 一起使用)"
     echo "  --status        查看服务状态"
+    echo "  --check         运行诊断检查"
     echo "  --attach, -a    附加到 tmux session"
     echo "  --help, -h      显示帮助"
     echo ""
@@ -230,6 +231,7 @@ show_help() {
     echo "  $0 --stop       停止服务"
     echo "  $0 --restart    重启服务"
     echo "  $0 --restart -f 强制重启"
+    echo "  $0 --check      检查服务健康状态"
     echo "  $0 --attach     查看日志"
 }
 
@@ -281,6 +283,107 @@ show_status() {
     fi
 }
 
+# 运行诊断检查
+run_diagnostics() {
+    echo ""
+    echo -e "${BLUE}ClawBody 服务诊断${NC}"
+    echo "═══════════════════════════════════════════════════════════"
+    echo ""
+
+    # 检查 Gateway 是否运行
+    if ! check_port 4000 "Gateway"; then
+        error "Gateway 未运行，请先启动服务: $0 --start"
+        exit 1
+    fi
+
+    info "正在检测各服务状态..."
+    echo ""
+
+    # 调用 diagnostics API
+    local response
+    response=$(curl -s --max-time 10 "http://localhost:4000/api/diagnostics" 2>/dev/null)
+
+    if [ -z "$response" ]; then
+        error "无法连接到 Gateway"
+        exit 1
+    fi
+
+    # 解析 JSON 响应 (使用 jq 如果可用，否则用 grep/sed)
+    if command -v jq &> /dev/null; then
+        local overall=$(echo "$response" | jq -r '.overall')
+        local uptime=$(echo "$response" | jq -r '.gateway.uptime')
+
+        echo -e "Gateway: ${GREEN}运行中${NC} (uptime: ${uptime}s)"
+        echo ""
+        echo "服务状态:"
+        echo "─────────────────────────────────────────────────────────"
+
+        # 遍历服务
+        for service in tts stt vad speaker-verification vision live2d; do
+            local status=$(echo "$response" | jq -r ".services[\"$service\"].status")
+            local latency=$(echo "$response" | jq -r ".services[\"$service\"].latency // \"N/A\"")
+            local message=$(echo "$response" | jq -r ".services[\"$service\"].message // \"\"")
+
+            case $status in
+                "ok")
+                    printf "  %-22s ${GREEN}✓ OK${NC} (%sms)\n" "$service" "$latency"
+                    ;;
+                "error")
+                    printf "  %-22s ${RED}✗ ERROR${NC}: %s\n" "$service" "$message"
+                    ;;
+                "not_registered")
+                    printf "  %-22s ${YELLOW}○ 未注册${NC}\n" "$service"
+                    ;;
+                *)
+                    printf "  %-22s ${YELLOW}? %s${NC}\n" "$service" "$status"
+                    ;;
+            esac
+        done
+
+        echo ""
+        echo "OpenClaw 集成:"
+        echo "─────────────────────────────────────────────────────────"
+        local oc_status=$(echo "$response" | jq -r '.openclaw.status')
+        local oc_message=$(echo "$response" | jq -r '.openclaw.message // ""')
+
+        case $oc_status in
+            "ok")
+                printf "  %-22s ${GREEN}✓ 已连接${NC}: %s\n" "OpenClaw" "$oc_message"
+                ;;
+            "error")
+                printf "  %-22s ${RED}✗ 连接失败${NC}: %s\n" "OpenClaw" "$oc_message"
+                ;;
+            "not_configured")
+                printf "  %-22s ${YELLOW}○ 未配置${NC}\n" "OpenClaw"
+                ;;
+            *)
+                printf "  %-22s ${YELLOW}? %s${NC}\n" "OpenClaw" "$oc_status"
+                ;;
+        esac
+
+        echo ""
+        echo "═══════════════════════════════════════════════════════════"
+
+        case $overall in
+            "ok")
+                echo -e "整体状态: ${GREEN}✓ 正常${NC}"
+                ;;
+            "degraded")
+                echo -e "整体状态: ${YELLOW}⚠ 部分服务异常${NC}"
+                ;;
+            "critical")
+                echo -e "整体状态: ${RED}✗ 严重故障${NC}"
+                ;;
+        esac
+    else
+        # 没有 jq，直接输出原始 JSON
+        warn "未安装 jq，显示原始诊断数据:"
+        echo "$response" | python3 -m json.tool 2>/dev/null || echo "$response"
+    fi
+
+    echo ""
+}
+
 # 主逻辑
 main() {
     local action="start"
@@ -306,6 +409,10 @@ main() {
                 ;;
             --status)
                 action="status"
+                shift
+                ;;
+            --check)
+                action="check"
                 shift
                 ;;
             --attach|-a)
@@ -367,6 +474,9 @@ main() {
             ;;
         status)
             show_status
+            ;;
+        check)
+            run_diagnostics
             ;;
         attach)
             if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
