@@ -7,6 +7,7 @@ import { ttsModule } from './tts'
 import { openclawModule } from './openclaw'
 import { actionsModule } from './actions'
 import { vadConfigModule } from './vad-config'
+import { svConfigModule } from './sv-config'
 import { eventsModule } from './events'
 
 export const modules: IModule[] = [
@@ -17,6 +18,7 @@ export const modules: IModule[] = [
   openclawModule,
   actionsModule,
   vadConfigModule,
+  svConfigModule,
   eventsModule,
 ]
 
