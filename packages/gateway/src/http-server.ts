@@ -214,12 +214,12 @@ export class HttpServer {
 
       // 检查各能力服务
       const serviceChecks = [
-        { name: 'tts', capability: 'tts', action: 'getConfig' },
+        { name: 'tts', capability: 'tts', action: 'listVoices' },
         { name: 'stt', capability: 'stt', action: 'listLanguages' },
         { name: 'vad', capability: 'vad', action: 'getConfig' },
         { name: 'speaker-verification', capability: 'speaker-verification', action: 'getConfig' },
         { name: 'vision', capability: 'vision', action: 'getDesktopInfo' },
-        { name: 'live2d', capability: 'live2d', action: 'getState' },
+        { name: 'live2d', capability: 'live2d', action: 'getModelInfo' },
       ];
 
       for (const check of serviceChecks) {
@@ -488,7 +488,8 @@ export class HttpServer {
 
       try {
         const motionGroup = this.persona?.motions[action] ?? action;
-        const motionIndex = index ?? Math.floor(Math.random() * 10); // random if not specified
+        // Use specified index, or random within valid range (0-2 for most groups)
+        const motionIndex = index ?? Math.floor(Math.random() * 3);
         await live2d.execute('motion', { group: motionGroup, index: motionIndex });
         send(res, 200, { ok: true, action, motion: motionGroup, index: motionIndex });
       } catch (err) {
