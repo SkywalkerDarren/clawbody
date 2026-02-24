@@ -5,6 +5,7 @@ import { servicesModule } from './services'
 import { speakersModule } from './speakers'
 import { ttsModule } from './tts'
 import { sttTestModule } from './stt-test'
+import { live2dModule } from './live2d'
 import { openclawModule } from './openclaw'
 import { actionsModule } from './actions'
 import { vadConfigModule } from './vad-config'
@@ -17,6 +18,7 @@ export const modules: IModule[] = [
   speakersModule,
   ttsModule,
   sttTestModule,
+  live2dModule,
   openclawModule,
   actionsModule,
   vadConfigModule,
