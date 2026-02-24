@@ -473,7 +473,7 @@ export class HttpServer {
 
     // POST /api/action - 触发动作
     this.app.post('/api/action', async (req: Request, res: Response) => {
-      const { action } = req.body as { action: string };
+      const { action, index } = req.body as { action: string; index?: number };
 
       if (!action) {
         send(res, 400, { error: 'action is required' });
@@ -488,8 +488,9 @@ export class HttpServer {
 
       try {
         const motionGroup = this.persona?.motions[action] ?? action;
-        await live2d.execute('motion', { group: motionGroup, index: 0 });
-        send(res, 200, { ok: true, action, motion: motionGroup });
+        const motionIndex = index ?? Math.floor(Math.random() * 10); // random if not specified
+        await live2d.execute('motion', { group: motionGroup, index: motionIndex });
+        send(res, 200, { ok: true, action, motion: motionGroup, index: motionIndex });
       } catch (err) {
         logger.error(MOD, 'action failed', err);
         send(res, 500, { error: 'Action failed' });
