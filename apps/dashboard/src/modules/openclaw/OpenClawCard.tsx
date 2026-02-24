@@ -1,9 +1,9 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useGatewayStore } from '@/core/store';
+import { useDiagnostics } from '@/core/hooks';
 
 export function OpenClawCard() {
-  const { diagnostics } = useGatewayStore();
+  const { data: diagnostics } = useDiagnostics();
   const openclaw = diagnostics?.openclaw;
 
   return (
