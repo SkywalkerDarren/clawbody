@@ -4,6 +4,7 @@ import { pipelineModule } from './pipeline'
 import { servicesModule } from './services'
 import { speakersModule } from './speakers'
 import { ttsModule } from './tts'
+import { sttTestModule } from './stt-test'
 import { openclawModule } from './openclaw'
 import { actionsModule } from './actions'
 import { vadConfigModule } from './vad-config'
@@ -15,6 +16,7 @@ export const modules: IModule[] = [
   servicesModule,
   speakersModule,
   ttsModule,
+  sttTestModule,
   openclawModule,
   actionsModule,
   vadConfigModule,
