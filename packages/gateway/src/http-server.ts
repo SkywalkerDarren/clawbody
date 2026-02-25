@@ -1196,7 +1196,17 @@ export class HttpServer {
       });
 
       if (!res.ok) {
-        logger.error(MOD, `forward STT to OpenClaw failed: ${res.status}`);
+        const url = `${oc.webhookUrl}/plugins/clawbody/inbound`;
+        let responseBody = '';
+        try {
+          responseBody = await res.text();
+        } catch {
+          // ignore
+        }
+        logger.error(
+          MOD,
+          `forward STT to OpenClaw failed: ${res.status} ${res.statusText} | url=${url} | body=${responseBody.slice(0, 200)}`,
+        );
       } else {
         logger.info(MOD, `STT forwarded to OpenClaw: "${text.slice(0, 50)}..."`);
       }
