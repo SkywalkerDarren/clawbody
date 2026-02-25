@@ -1,6 +1,46 @@
 // clawbody plugin
 // 把 AI 回复转发给 ClawBody /api/speak/stream
 
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { pathToFileURL } from 'node:url';
+
+// --- Core bridge (same pattern as voice-call plugin) ---
+let coreDepsPromise = null;
+
+function resolveOpenClawRoot() {
+  if (process.env.OPENCLAW_ROOT?.trim()) return process.env.OPENCLAW_ROOT.trim();
+  const candidates = [process.argv[1] ? path.dirname(process.argv[1]) : null, process.cwd()].filter(Boolean);
+  for (const start of candidates) {
+    let dir = start;
+    while (true) {
+      const pkgPath = path.join(dir, 'package.json');
+      try {
+        if (fs.existsSync(pkgPath)) {
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          if (pkg.name === 'openclaw') return dir;
+        }
+      } catch {}
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  }
+  throw new Error('Unable to resolve OpenClaw root. Set OPENCLAW_ROOT.');
+}
+
+async function loadCoreDeps() {
+  if (coreDepsPromise) return coreDepsPromise;
+  coreDepsPromise = (async () => {
+    const distPath = path.join(resolveOpenClawRoot(), 'dist', 'extensionAPI.js');
+    if (!fs.existsSync(distPath)) throw new Error(`Missing extensionAPI.js at ${distPath}`);
+    return await import(pathToFileURL(distPath).href);
+  })();
+  return coreDepsPromise;
+}
+
+// --- Channel plugin definition ---
 const plugin = {
   id: 'clawbody',
   meta: {
@@ -13,100 +53,170 @@ const plugin = {
   },
   capabilities: { chatTypes: ['direct'] },
   config: {
-    listAccountIds: (cfg) => {
-      const accounts = cfg.channels?.clawbody?.accounts ?? {};
-      return Object.keys(accounts);
-    },
+    listAccountIds: (cfg) => Object.keys(cfg.channels?.clawbody?.accounts ?? {}),
     resolveAccount: (cfg, accountId) =>
       cfg.channels?.clawbody?.accounts?.[accountId ?? 'default'] ?? { accountId },
   },
   outbound: {
     deliveryMode: 'direct',
-    sendText: async ({ text, account }) => {
-      const baseUrl = account?.url;
-      if (!baseUrl) {
-        console.error('[clawbody] missing required config: channels.clawbody.accounts.<id>.url');
-        return { ok: false, error: 'ClawBody URL not configured. Set channels.clawbody.accounts.<id>.url in your OpenClaw config.' };
-      }
-      const apiKey = account?.apiKey;
-      const emotion = account?.emotion ?? 'neutral';
-
-      try {
-        const headers = { 'Content-Type': 'application/json' };
-        if (apiKey) headers['X-Api-Key'] = apiKey;
-
-        const res = await fetch(`${baseUrl}/api/speak/stream`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ text, emotion }),
-        });
-
-        if (!res.ok) {
-          console.error(`[clawbody] speak/stream failed: ${res.status}`);
-          return { ok: false, error: `HTTP ${res.status}` };
-        }
-
-        // 消费 SSE 流（等待完成）
-        const reader = res.body.getReader();
-        while (true) {
-          const { done } = await reader.read();
-          if (done) break;
-        }
-
-        return { ok: true };
-      } catch (err) {
-        console.error('[clawbody] speak/stream error:', err.message);
-        return { ok: false, error: err.message };
-      }
+    resolveTarget: ({ cfg, accountId }) => {
+      const accounts = cfg?.channels?.clawbody?.accounts ?? {};
+      const id = accountId ?? 'default';
+      const account = accounts[id] ?? accounts['default'];
+      if (!account?.url) return { ok: false, error: 'ClawBody URL not configured' };
+      return { ok: true, to: id };
     },
+    sendText: async ({ text, account }) => speakText(account, text),
   },
 };
 
-
-async function speakToClawBody(config, text) {
-  const account = config?.channels?.clawbody?.accounts?.default;
+async function speakText(account, text) {
   const baseUrl = account?.url;
-  if (!baseUrl) return;
+  if (!baseUrl) {
+    console.error('[clawbody] missing url');
+    return { ok: false, error: 'ClawBody URL not configured.' };
+  }
+  const headers = { 'Content-Type': 'application/json' };
+  if (account?.apiKey) headers['X-Api-Key'] = account.apiKey;
 
-  const apiKey = account?.apiKey;
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (apiKey) headers['X-Api-Key'] = apiKey;
-
     const res = await fetch(`${baseUrl}/api/speak/stream`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ text, emotion: 'neutral' }),
+      body: JSON.stringify({ text, emotion: account?.emotion ?? 'neutral' }),
     });
-
     if (!res.ok) {
-      console.error(`[clawbody-mirror] speak/stream failed: ${res.status}`);
-      return;
+      console.error(`[clawbody] speak/stream failed: ${res.status}`);
+      return { ok: false, error: `HTTP ${res.status}` };
     }
-
+    // Drain response
     const reader = res.body.getReader();
-    while (true) {
-      const { done } = await reader.read();
-      if (done) break;
-    }
+    while (!(await reader.read()).done) {}
+    return { ok: true };
   } catch (err) {
-    console.error('[clawbody-mirror] error:', err.message);
+    console.error('[clawbody] speak/stream error:', err.message);
+    return { ok: false, error: err.message };
   }
 }
 
+// --- Plugin entry ---
 export default function (api) {
   api.registerChannel({ plugin });
 
-  // Mirror outbound Telegram messages to ClawBody for TTS
-  api.registerHook(
-    ['message:sent'],
-    async (event) => {
-      if (event.context?.channelId !== 'telegram') return;
-      if (!event.context?.success) return;
-      const content = event.context?.content;
-      if (!content?.trim()) return;
-      await speakToClawBody(api.config, content);
+  api.registerHttpRoute({
+    path: '/plugins/clawbody/inbound',
+    handler: async (req, res) => {
+      try {
+        const body = await readJsonBody(req);
+        const text = body?.text?.trim();
+        if (!text) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'text required' }));
+          return;
+        }
+
+        const cfg = api.config;
+        const accounts = cfg?.channels?.clawbody?.accounts ?? {};
+        const accountId = body?.accountId ?? 'default';
+        const account = accounts[accountId] ?? accounts['default'];
+        const sessionKey = body?.sessionKey
+          ?? cfg?.channels?.clawbody?.defaultSessionKey
+          ?? 'clawbody:voice';
+
+        // Load core agent deps (same as voice-call plugin)
+        let deps;
+        try {
+          deps = await loadCoreDeps();
+        } catch (err) {
+          console.error('[clawbody] core deps load failed:', err.message);
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'core deps unavailable' }));
+          return;
+        }
+
+        // Respond immediately, process async
+        res.writeHead(202, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+
+        // Run embedded agent (same pattern as voice-call)
+        const agentId = 'main';
+        const storePath = deps.resolveStorePath(cfg.session?.store, { agentId });
+        const agentDir = deps.resolveAgentDir(cfg, agentId);
+        const workspaceDir = deps.resolveAgentWorkspaceDir(cfg, agentId);
+        await deps.ensureAgentWorkspace({ dir: workspaceDir });
+
+        const sessionStore = deps.loadSessionStore(storePath);
+        let sessionEntry = sessionStore[sessionKey];
+        if (!sessionEntry) {
+          sessionEntry = { sessionId: crypto.randomUUID(), updatedAt: Date.now() };
+          sessionStore[sessionKey] = sessionEntry;
+          await deps.saveSessionStore(storePath, sessionStore);
+        }
+
+        const sessionId = sessionEntry.sessionId;
+        const sessionFile = deps.resolveSessionFilePath(sessionId, sessionEntry, { agentId });
+
+        const modelRef = cfg?.channels?.clawbody?.model
+          ?? `${deps.DEFAULT_PROVIDER}/${deps.DEFAULT_MODEL}`;
+        const slashIdx = modelRef.indexOf('/');
+        const provider = slashIdx === -1 ? deps.DEFAULT_PROVIDER : modelRef.slice(0, slashIdx);
+        const model = slashIdx === -1 ? modelRef : modelRef.slice(slashIdx + 1);
+        const thinkLevel = deps.resolveThinkingDefault({ cfg, provider, model });
+        const timeoutMs = deps.resolveAgentTimeoutMs({ cfg });
+
+        const voicePrompt = `[Voice] ${text}\n\n[System: Reply in short spoken sentences, max 2 sentences, no markdown or special symbols.]`;
+
+        try {
+          const result = await deps.runEmbeddedPiAgent({
+            sessionId,
+            sessionKey,
+            messageProvider: 'clawbody',
+            sessionFile,
+            workspaceDir,
+            config: cfg,
+            prompt: voicePrompt,
+            provider,
+            model,
+            thinkLevel,
+            verboseLevel: 'off',
+            timeoutMs,
+            runId: `clawbody:${Date.now()}`,
+            lane: 'clawbody',
+            agentDir,
+          });
+
+          const texts = (result.payloads ?? [])
+            .filter(p => p.text && !p.isError)
+            .map(p => p.text?.trim())
+            .filter(Boolean);
+          const replyText = texts.join(' ');
+
+          if (replyText) {
+            await speakText(account, replyText);
+          }
+        } catch (err) {
+          console.error('[clawbody] agent run failed:', err.message);
+        }
+
+      } catch (err) {
+        console.error('[clawbody] inbound handler error:', err.message);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: err.message }));
+        }
+      }
     },
-    { name: 'clawbody-mirror', description: 'Mirror Telegram replies to ClawBody TTS' }
-  );
+  });
+}
+
+async function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (chunk) => { data += chunk; });
+    req.on('end', () => {
+      try { resolve(JSON.parse(data)); }
+      catch { resolve({}); }
+    });
+    req.on('error', reject);
+  });
 }
